@@ -85,6 +85,13 @@ def _search(pattern: str, text: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _to_number(value: str) -> int | float | str:
+    normalized = value.strip()
+    if re.fullmatch(r"[+-]?\d+(?:\.\d+)?", normalized):
+        return float(normalized) if "." in normalized else int(normalized)
+    return value
+
+
 def parse_report_text(text: str) -> dict[str, object]:
     normalized = re.sub(r"\s+", " ", text)
 
@@ -110,13 +117,13 @@ def parse_report_text(text: str) -> dict[str, object]:
 
     aortic_t2 = _search(r"Aortic T2:\s*([0-9.]+)\s*ms", normalized)
     p1_height = _search(r"P1 Height.*?:\s*([0-9.]+)\s*mmHg", normalized)
-    aortic_augmentation = _search(r"Aortic Augmentation.*?:\s*([0-9.]+)\s*mmHg", normalized)
+    aortic_augmentation = _search(r"Aortic Augmentation.*?:\s*([-+]?[0-9.]+)\s*mmHg", normalized)
 
-    aix_match = re.search(r"Aortic AIx \(AP/PP, P2/P1\):\s*([0-9.]+)\s*%,\s*([0-9.]+)\s*%", normalized, flags=re.IGNORECASE)
+    aix_match = re.search(r"Aortic AIx \(AP/PP, P2/P1\):\s*([-+]?[0-9.]+)\s*%,\s*([-+]?[0-9.]+)\s*%", normalized, flags=re.IGNORECASE)
     aortic_aix_ap_pp = aix_match.group(1) if aix_match else None
     aortic_aix_p2_p1 = aix_match.group(2) if aix_match else None
 
-    aix_hr75 = _search(r"Aortic AIx \(AP/PP\) @HR75:\s*([0-9.]+)\s*%", normalized)
+    aix_hr75 = _search(r"Aortic AIx \(AP/PP\) @HR75:\s*([-+]?[0-9.]+)\s*%", normalized)
     buckberg = _search(r"Buckberg SEVR:\s*([0-9.]+)\s*%", normalized)
 
     pti_match = re.search(r"PTI \(Systole, Diastole\):\s*([0-9.]+),\s*([0-9.]+)\s*mmHg\.s/min", normalized, flags=re.IGNORECASE)
@@ -223,11 +230,8 @@ def parse_report_text(text: str) -> dict[str, object]:
     }
 
     for key, value in record.items():
-        if isinstance(value, str) and value.replace(".", "", 1).isdigit():
-            if "." in value:
-                record[key] = float(value)
-            else:
-                record[key] = int(value)
+        if isinstance(value, str):
+            record[key] = _to_number(value)
     return record
 
 
