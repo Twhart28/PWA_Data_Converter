@@ -64,6 +64,7 @@ def select_output_file() -> Path | None:
     root.withdraw()
     output_path = filedialog.asksaveasfilename(
         title="Save Excel file as",
+        initialfile="pwa_export.xlsx",
         defaultextension=".xlsx",
         filetypes=[("Excel Workbook", "*.xlsx")],
     )
@@ -141,27 +142,46 @@ def parse_report_text(text: str) -> dict[str, object]:
     peripheral_sys = brachial_match.group(1) if brachial_match else None
     peripheral_dia = brachial_match.group(2) if brachial_match else None
 
-    table_match = re.search(r"SP\s+([0-9.]+)\s+([0-9.]+)\s+DP\s+([0-9.]+)\s+([0-9.]+)\s+PP\s+([0-9.]+)\s+([0-9.]+)\s+MAP HR\s+([0-9.]+)\s+([0-9.]+)", normalized)
-    if table_match:
-        peripheral_sys = peripheral_sys or table_match.group(1)
-        aortic_sys = table_match.group(2)
-        peripheral_dia = peripheral_dia or table_match.group(3)
-        aortic_dia = table_match.group(4)
-        peripheral_pp = table_match.group(5)
-        aortic_pp = table_match.group(6)
-        peripheral_mean = table_match.group(7)
-    else:
-        aortic_sys = None
-        aortic_dia = None
-        peripheral_pp = None
-        aortic_pp = None
-        peripheral_mean = None
+    aortic_sys = None
+    aortic_dia = None
+    peripheral_pp = None
+    aortic_pp = None
+    peripheral_mean = None
+    table_heart_rate = None
+
+    sp_match = re.search(r"SP\s+([0-9.]+)\s+([0-9.]+)", normalized, flags=re.IGNORECASE)
+    if sp_match:
+        peripheral_sys = peripheral_sys or sp_match.group(1)
+        aortic_sys = sp_match.group(2)
+
+    dp_match = re.search(r"DP\s+([0-9.]+)\s+([0-9.]+)", normalized, flags=re.IGNORECASE)
+    if dp_match:
+        peripheral_dia = peripheral_dia or dp_match.group(1)
+        aortic_dia = dp_match.group(2)
+
+    pp_match = re.search(r"PP\s+([0-9.]+)\s+([0-9.]+)", normalized, flags=re.IGNORECASE)
+    if pp_match:
+        peripheral_pp = pp_match.group(1)
+        aortic_pp = pp_match.group(2)
+
+    map_hr_match = re.search(r"MAP HR\s+([0-9.]+)\s+([0-9.]+)", normalized, flags=re.IGNORECASE)
+    if map_hr_match:
+        peripheral_mean = map_hr_match.group(1)
+        table_heart_rate = map_hr_match.group(2)
 
     if peripheral_sys and peripheral_dia and peripheral_pp is None:
         try:
             peripheral_pp = str(float(peripheral_sys) - float(peripheral_dia))
         except ValueError:
             peripheral_pp = None
+
+    if aortic_sys and aortic_dia and aortic_pp is None:
+        try:
+            aortic_pp = str(float(aortic_sys) - float(aortic_dia))
+        except ValueError:
+            aortic_pp = None
+
+    heart_rate = heart_rate or table_heart_rate
 
     record = {
         "Patient ID": patient_id,
