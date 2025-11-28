@@ -416,9 +416,9 @@ def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
     if kept_indices:
         df.loc[df.index.isin(kept_indices), "Analyed"] = "Yes"
 
-    kept_df = df[df["Analyed"] == "Yes"]
+    kept_df = df[df["Analyed"] == "Yes"].copy()
 
-    averaged_df = analyzed_df.drop(columns=["Recording #"], errors="ignore")
+    averaged_df = analyzed_df.drop(columns=["Recording #"], errors="ignore").copy()
 
     date_columns = ["Scan Date", "Date of Birth"]
 
@@ -427,8 +427,10 @@ def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
             if date_column not in frame.columns:
                 continue
 
-            parsed_dates = pd.to_datetime(frame[date_column], errors="coerce")
-            frame[date_column] = parsed_dates.dt.strftime("%m/%d/%Y").where(
+            parsed_dates = pd.to_datetime(
+                frame[date_column], errors="coerce", dayfirst=True
+            )
+            frame.loc[:, date_column] = parsed_dates.dt.strftime("%m/%d/%Y").where(
                 parsed_dates.notna(), frame[date_column]
             )
 
@@ -462,7 +464,10 @@ def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
                     cell.alignment = center_alignment
 
             if sheet_name in {"All Data", "Kept Data"}:
-                for cell in sheet.iter_cols(min_col=1, max_col=1, min_row=2, max_row=sheet.max_row)[0]:
+                first_column = sheet.iter_cols(
+                    min_col=1, max_col=1, min_row=2, max_row=sheet.max_row
+                )
+                for cell in next(first_column, ()):  # type: ignore[arg-type]
                     cell.alignment = header_alignment
 
             if sheet_name == "All Data":
