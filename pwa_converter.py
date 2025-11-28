@@ -278,8 +278,7 @@ def _detect_report_type(text: str) -> str:
 def _empty_record(message: str, pdf_path: Path) -> dict[str, object]:
     record: dict[str, object] = {column: None for column in COLUMNS}
     record["Source File"] = pdf_path.name
-    record["Patient ID"] = _derive_patient_id(pdf_path)
-    record["Scanned ID"] = message
+    record["Patient ID"] = message
     return record
 
 
@@ -366,7 +365,14 @@ def _build_analyzed_data(df: pd.DataFrame) -> pd.DataFrame:
 
 def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
     df = pd.DataFrame(records, columns=COLUMNS)
-    df.sort_values(by=["Patient ID", "Scan Date", "Scan Time"], inplace=True)
+
+    df["Special Row"] = df["Patient ID"].isin(
+        {CLINICAL_REPORT_MESSAGE, UNRECOGNIZED_REPORT_MESSAGE}
+    )
+
+    df.sort_values(
+        by=["Special Row", "Patient ID", "Scan Date", "Scan Time"], inplace=True
+    )
 
     df.drop_duplicates(
         subset=["Patient ID", "Scan Time", "PTI Diastolic (mmHg.s/min)"],
@@ -374,7 +380,13 @@ def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
         inplace=True,
     )
 
-    df["Recording #"] = df.groupby("Patient ID").cumcount() + 1
+    df["Recording #"] = None
+    valid_rows = ~df["Special Row"]
+    df.loc[valid_rows, "Recording #"] = (
+        df[valid_rows].groupby("Patient ID").cumcount() + 1
+    )
+
+    df.drop(columns=["Special Row"], inplace=True)
 
     analyzed_df = _build_analyzed_data(df)
 
