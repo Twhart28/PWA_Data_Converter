@@ -381,6 +381,8 @@ def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
         {CLINICAL_REPORT_MESSAGE, UNRECOGNIZED_REPORT_MESSAGE}
     )
 
+    df.loc[df["Special Row"], COLUMNS[2:]] = None
+
     df.sort_values(
         by=["Special Row", "Patient ID", "Scan Date", "Scan Time"], inplace=True
     )
@@ -397,6 +399,8 @@ def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
         inplace=True,
         ignore_index=True,
     )
+
+    special_row_mask = df["Special Row"].copy()
 
     df["Recording #"] = None
     valid_rows = ~df["Special Row"]
@@ -417,15 +421,22 @@ def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
     averaged_df = analyzed_df.drop(columns=["Recording #"], errors="ignore")
 
     date_columns = ["Scan Date", "Date of Birth"]
-    for date_column in date_columns:
-        if date_column in df.columns:
-            df[date_column] = pd.to_datetime(df[date_column], errors="coerce")
-        if date_column in kept_df.columns:
-            kept_df[date_column] = pd.to_datetime(kept_df[date_column], errors="coerce")
-        if date_column in averaged_df.columns:
-            averaged_df[date_column] = pd.to_datetime(
-                averaged_df[date_column], errors="coerce"
+
+    def _normalize_dates(frame: pd.DataFrame) -> pd.DataFrame:
+        for date_column in date_columns:
+            if date_column not in frame.columns:
+                continue
+
+            parsed_dates = pd.to_datetime(frame[date_column], errors="coerce")
+            frame[date_column] = parsed_dates.dt.strftime("%m/%d/%Y").where(
+                parsed_dates.notna(), frame[date_column]
             )
+
+        return frame
+
+    df = _normalize_dates(df)
+    kept_df = _normalize_dates(kept_df)
+    averaged_df = _normalize_dates(averaged_df)
 
     with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
         df.to_excel(writer, sheet_name="All Data", index=False)
@@ -449,6 +460,18 @@ def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
             for row in sheet.iter_rows(min_row=2):
                 for cell in row:
                     cell.alignment = center_alignment
+
+            if sheet_name in {"All Data", "Kept Data"}:
+                for cell in sheet.iter_cols(min_col=1, max_col=1, min_row=2, max_row=sheet.max_row)[0]:
+                    cell.alignment = header_alignment
+
+            if sheet_name == "All Data":
+                for row_index, is_special in special_row_mask.items():
+                    if not is_special:
+                        continue
+
+                    patient_cell = sheet.cell(row=row_index + 2, column=2)
+                    patient_cell.alignment = header_alignment
 
             for date_column in date_columns:
                 if date_column not in frame.columns:
