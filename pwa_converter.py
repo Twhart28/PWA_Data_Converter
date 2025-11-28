@@ -10,6 +10,9 @@ import pdfplumber
 COLUMNS = [
     "Source File",
     "Patient ID",
+    "Scanned ID",
+    "Scan Date",
+    "Scan Time",
     "Date of Birth",
     "Age",
     "Gender",
@@ -99,11 +102,29 @@ def _to_number(value: str) -> int | float | str:
     return value
 
 
+def _extract_scan_datetime(text: str) -> tuple[str | None, str | None]:
+    date_time_match = None
+    for date_time_match in re.finditer(
+        r"([0-9]{2}/[0-9]{2}/[0-9]{4})\s+([0-9]{2}:[0-9]{2}(?::[0-9]{2})?)",
+        text,
+    ):
+        pass
+    if date_time_match:
+        return date_time_match.group(1), date_time_match.group(2)
+    return None, None
+
+
+def _derive_patient_id(pdf_path: Path) -> str:
+    return pdf_path.stem.split("_", 1)[0]
+
+
 def parse_report_text(text: str) -> dict[str, object]:
     normalized = re.sub(r"\s+", " ", text)
 
     patient_id = _search(r"Patient ID:\s*(\S+)", normalized)
     dob = _search(r"Date Of Birth:\s*([0-9]{2}/[0-9]{2}/[0-9]{4})", normalized)
+
+    scan_date, scan_time = _extract_scan_datetime(normalized)
 
     age_gender_match = re.search(r"Age, Gender:\s*([0-9]+),\s*([A-Za-z]+)", normalized, flags=re.IGNORECASE)
     age = age_gender_match.group(1) if age_gender_match else None
@@ -198,7 +219,9 @@ def parse_report_text(text: str) -> dict[str, object]:
     heart_rate = heart_rate or table_heart_rate
 
     record = {
-        "Patient ID": patient_id,
+        "Scanned ID": patient_id,
+        "Scan Date": scan_date,
+        "Scan Time": scan_time,
         "Date of Birth": dob,
         "Age": age,
         "Gender": gender,
@@ -254,7 +277,8 @@ def _detect_report_type(text: str) -> str:
 def _empty_record(message: str, pdf_path: Path) -> dict[str, object]:
     record: dict[str, object] = {column: None for column in COLUMNS}
     record["Source File"] = pdf_path.name
-    record["Patient ID"] = message
+    record["Patient ID"] = _derive_patient_id(pdf_path)
+    record["Scanned ID"] = message
     return record
 
 
@@ -265,6 +289,7 @@ def process_pdf(pdf_path: Path) -> dict[str, object]:
     if report_type == "detailed":
         data = parse_report_text(text)
         data["Source File"] = pdf_path.name
+        data["Patient ID"] = _derive_patient_id(pdf_path)
         return data
 
     if report_type == "clinical":
@@ -275,6 +300,7 @@ def process_pdf(pdf_path: Path) -> dict[str, object]:
 
 def save_to_excel(records: list[dict[str, object]], output_path: Path) -> None:
     df = pd.DataFrame(records, columns=COLUMNS)
+    df.sort_values(by=["Patient ID", "Scan Date", "Scan Time"], inplace=True)
     df.to_excel(output_path, index=False)
 
 
