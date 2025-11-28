@@ -5,6 +5,7 @@ from tkinter import filedialog, messagebox
 
 import pandas as pd
 import pdfplumber
+from openpyxl.styles import Alignment
 
 
 COLUMNS = [
@@ -384,10 +385,17 @@ def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
         by=["Special Row", "Patient ID", "Scan Date", "Scan Time"], inplace=True
     )
 
-    df.drop_duplicates(
+    special_rows = df["Special Row"]
+    regular_df = df.loc[~special_rows].drop_duplicates(
         subset=["Patient ID", "Scan Time", "PTI Diastolic (mmHg.s/min)"],
         keep="first",
+    )
+    df = pd.concat([regular_df, df.loc[special_rows]], ignore_index=True)
+
+    df.sort_values(
+        by=["Special Row", "Patient ID", "Scan Date", "Scan Time"],
         inplace=True,
+        ignore_index=True,
     )
 
     df["Recording #"] = None
@@ -408,10 +416,54 @@ def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
 
     averaged_df = analyzed_df.drop(columns=["Recording #"], errors="ignore")
 
-    with pd.ExcelWriter(output_path) as writer:
+    date_columns = ["Scan Date", "Date of Birth"]
+    for date_column in date_columns:
+        if date_column in df.columns:
+            df[date_column] = pd.to_datetime(df[date_column], errors="coerce")
+        if date_column in kept_df.columns:
+            kept_df[date_column] = pd.to_datetime(kept_df[date_column], errors="coerce")
+        if date_column in averaged_df.columns:
+            averaged_df[date_column] = pd.to_datetime(
+                averaged_df[date_column], errors="coerce"
+            )
+
+    with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
         df.to_excel(writer, sheet_name="All Data", index=False)
         kept_df.to_excel(writer, sheet_name="Kept Data", index=False)
         averaged_df.to_excel(writer, sheet_name="Averaged Data", index=False)
+
+        header_alignment = Alignment(horizontal="left")
+        center_alignment = Alignment(horizontal="center")
+        sheet_frames = {
+            "All Data": df,
+            "Kept Data": kept_df,
+            "Averaged Data": averaged_df,
+        }
+
+        for sheet_name, frame in sheet_frames.items():
+            sheet = writer.book[sheet_name]
+
+            for cell in sheet[1]:
+                cell.alignment = header_alignment
+
+            for row in sheet.iter_rows(min_row=2):
+                for cell in row:
+                    cell.alignment = center_alignment
+
+            for date_column in date_columns:
+                if date_column not in frame.columns:
+                    continue
+
+                date_col_index = frame.columns.get_loc(date_column) + 1
+
+                for cell in sheet.iter_cols(
+                    min_col=date_col_index,
+                    max_col=date_col_index,
+                    min_row=2,
+                    max_row=sheet.max_row,
+                ):
+                    for date_cell in cell:
+                        date_cell.number_format = "MM/DD/YY"
 
     return len(df)
 
