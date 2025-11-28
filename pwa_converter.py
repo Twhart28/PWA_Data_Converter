@@ -14,6 +14,7 @@ COLUMNS = [
     "Scan Date",
     "Scan Time",
     "Recording #",
+    "Analyed",
     "Date of Birth",
     "Age",
     "Gender",
@@ -335,7 +336,7 @@ def _average_pair_rows(pair_df: pd.DataFrame, excluded_fields: set[str]) -> dict
     return averaged
 
 
-def _build_analyzed_data(df: pd.DataFrame) -> pd.DataFrame:
+def _build_analyzed_data(df: pd.DataFrame) -> tuple[pd.DataFrame, set[int]]:
     analysis_fields = [
         "Peripheral Systolic Pressure (mmHg)",
         "Peripheral Diastolic Pressure (mmHg)",
@@ -347,7 +348,15 @@ def _build_analyzed_data(df: pd.DataFrame) -> pd.DataFrame:
         numeric_df[field] = pd.to_numeric(numeric_df[field], errors="coerce")
 
     analyzed_records: list[dict[str, object]] = []
-    excluded_fields = {"Source File", "Scanned ID", "Scan Date", "Scan Time"}
+    kept_indices: set[int] = set()
+    excluded_fields = {
+        "Source File",
+        "Scanned ID",
+        "Scan Date",
+        "Scan Time",
+        "Analyed",
+        "Recording #",
+    }
 
     for patient_id, group in numeric_df.groupby("Patient ID"):
         valid_group = group.dropna(subset=analysis_fields)
@@ -359,8 +368,9 @@ def _build_analyzed_data(df: pd.DataFrame) -> pd.DataFrame:
         averaged_record = _average_pair_rows(pair_df, excluded_fields)
         averaged_record["Patient ID"] = patient_id
         analyzed_records.append(averaged_record)
+        kept_indices.update(pair)
 
-    return pd.DataFrame(analyzed_records)
+    return pd.DataFrame(analyzed_records), kept_indices
 
 
 def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
@@ -388,11 +398,20 @@ def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
 
     df.drop(columns=["Special Row"], inplace=True)
 
-    analyzed_df = _build_analyzed_data(df)
+    analyzed_df, kept_indices = _build_analyzed_data(df)
+
+    df["Analyed"] = "No"
+    if kept_indices:
+        df.loc[df.index.isin(kept_indices), "Analyed"] = "Yes"
+
+    kept_df = df[df["Analyed"] == "Yes"]
+
+    averaged_df = analyzed_df.drop(columns=["Recording #"], errors="ignore")
 
     with pd.ExcelWriter(output_path) as writer:
         df.to_excel(writer, sheet_name="All Data", index=False)
-        analyzed_df.to_excel(writer, sheet_name="Analyzed Data", index=False)
+        kept_df.to_excel(writer, sheet_name="Kept Data", index=False)
+        averaged_df.to_excel(writer, sheet_name="Averaged Data", index=False)
 
     return len(df)
 
