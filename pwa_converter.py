@@ -299,6 +299,71 @@ def process_pdf(pdf_path: Path) -> dict[str, object]:
     return _empty_record(UNRECOGNIZED_REPORT_MESSAGE, pdf_path)
 
 
+def _closest_pair_indices(df: pd.DataFrame, fields: list[str]) -> tuple[int, int] | None:
+    if len(df) < 2:
+        return None
+
+    min_distance = float("inf")
+    closest_pair: tuple[int, int] | None = None
+
+    for i, idx_i in enumerate(df.index[:-1]):
+        for idx_j in df.index[i + 1 :]:
+            diff = df.loc[idx_i, fields] - df.loc[idx_j, fields]
+            distance = (diff.pow(2).sum()) ** 0.5
+            if distance < min_distance:
+                min_distance = distance
+                closest_pair = (idx_i, idx_j)
+
+    return closest_pair
+
+
+def _average_pair_rows(pair_df: pd.DataFrame, excluded_fields: set[str]) -> dict[str, object]:
+    averaged: dict[str, object] = {}
+    for column in pair_df.columns:
+        if column in excluded_fields:
+            continue
+        if column == "Patient ID":
+            averaged[column] = pair_df[column].iloc[0]
+            continue
+
+        numeric_values = pd.to_numeric(pair_df[column], errors="coerce")
+        if numeric_values.notna().any():
+            averaged[column] = numeric_values.mean()
+        else:
+            non_null = pair_df[column].dropna()
+            averaged[column] = non_null.iloc[0] if not non_null.empty else None
+
+    return averaged
+
+
+def _build_analyzed_data(df: pd.DataFrame) -> pd.DataFrame:
+    analysis_fields = [
+        "Peripheral Systolic Pressure (mmHg)",
+        "Peripheral Diastolic Pressure (mmHg)",
+        "Peripheral Mean Pressure (mmHg)",
+    ]
+
+    numeric_df = df.copy()
+    for field in analysis_fields:
+        numeric_df[field] = pd.to_numeric(numeric_df[field], errors="coerce")
+
+    analyzed_records: list[dict[str, object]] = []
+    excluded_fields = {"Source File", "Scanned ID", "Scan Date", "Scan Time"}
+
+    for patient_id, group in numeric_df.groupby("Patient ID"):
+        valid_group = group.dropna(subset=analysis_fields)
+        pair = _closest_pair_indices(valid_group, analysis_fields)
+        if pair is None:
+            continue
+
+        pair_df = df.loc[list(pair)]
+        averaged_record = _average_pair_rows(pair_df, excluded_fields)
+        averaged_record["Patient ID"] = patient_id
+        analyzed_records.append(averaged_record)
+
+    return pd.DataFrame(analyzed_records)
+
+
 def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
     df = pd.DataFrame(records, columns=COLUMNS)
     df.sort_values(by=["Patient ID", "Scan Date", "Scan Time"], inplace=True)
@@ -310,7 +375,13 @@ def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
     )
 
     df["Recording #"] = df.groupby("Patient ID").cumcount() + 1
-    df.to_excel(output_path, index=False)
+
+    analyzed_df = _build_analyzed_data(df)
+
+    with pd.ExcelWriter(output_path) as writer:
+        df.to_excel(writer, sheet_name="All Data", index=False)
+        analyzed_df.to_excel(writer, sheet_name="Analyzed Data", index=False)
+
     return len(df)
 
 
