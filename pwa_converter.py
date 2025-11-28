@@ -47,6 +47,13 @@ COLUMNS = [
     "MAP Diastolic (mmHg)",
 ]
 
+DETAILED_REPORT_MARKER = "PWA Detailed Report"
+CLINICAL_REPORT_MARKER = "PWA Clinical Report"
+CLINICAL_REPORT_MESSAGE = (
+    "Recognized as a Clinical Report, only upload the Detailed Reports"
+)
+UNRECOGNIZED_REPORT_MESSAGE = "Not recognized as a PWA Detailed Report"
+
 
 def select_input_files() -> tuple[Path, ...]:
     root = tk.Tk()
@@ -235,11 +242,35 @@ def parse_report_text(text: str) -> dict[str, object]:
     return record
 
 
+def _detect_report_type(text: str) -> str:
+    normalized = text.lower()
+    if DETAILED_REPORT_MARKER.lower() in normalized:
+        return "detailed"
+    if CLINICAL_REPORT_MARKER.lower() in normalized:
+        return "clinical"
+    return "unrecognized"
+
+
+def _empty_record(message: str, pdf_path: Path) -> dict[str, object]:
+    record: dict[str, object] = {column: None for column in COLUMNS}
+    record["Source File"] = pdf_path.name
+    record["Patient ID"] = message
+    return record
+
+
 def process_pdf(pdf_path: Path) -> dict[str, object]:
     text = extract_text(pdf_path)
-    data = parse_report_text(text)
-    data["Source File"] = pdf_path.name
-    return data
+    report_type = _detect_report_type(text)
+
+    if report_type == "detailed":
+        data = parse_report_text(text)
+        data["Source File"] = pdf_path.name
+        return data
+
+    if report_type == "clinical":
+        return _empty_record(CLINICAL_REPORT_MESSAGE, pdf_path)
+
+    return _empty_record(UNRECOGNIZED_REPORT_MESSAGE, pdf_path)
 
 
 def save_to_excel(records: list[dict[str, object]], output_path: Path) -> None:
