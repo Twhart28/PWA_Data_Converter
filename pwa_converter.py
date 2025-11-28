@@ -13,6 +13,7 @@ COLUMNS = [
     "Scanned ID",
     "Scan Date",
     "Scan Time",
+    "Recording #",
     "Date of Birth",
     "Age",
     "Gender",
@@ -298,10 +299,19 @@ def process_pdf(pdf_path: Path) -> dict[str, object]:
     return _empty_record(UNRECOGNIZED_REPORT_MESSAGE, pdf_path)
 
 
-def save_to_excel(records: list[dict[str, object]], output_path: Path) -> None:
+def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
     df = pd.DataFrame(records, columns=COLUMNS)
     df.sort_values(by=["Patient ID", "Scan Date", "Scan Time"], inplace=True)
+
+    df.drop_duplicates(
+        subset=["Patient ID", "Scan Time", "PTI Diastolic (mmHg.s/min)"],
+        keep="first",
+        inplace=True,
+    )
+
+    df["Recording #"] = df.groupby("Patient ID").cumcount() + 1
     df.to_excel(output_path, index=False)
+    return len(df)
 
 
 def main() -> None:
@@ -316,8 +326,11 @@ def main() -> None:
         return
 
     records = [process_pdf(path) for path in pdf_paths]
-    save_to_excel(records, output_path)
-    messagebox.showinfo("PWA Data Converter", f"Exported {len(records)} record(s) to {output_path}")
+    exported_count = save_to_excel(records, output_path)
+    messagebox.showinfo(
+        "PWA Data Converter",
+        f"Exported {exported_count} record(s) to {output_path}",
+    )
 
 
 if __name__ == "__main__":
