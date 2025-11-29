@@ -427,12 +427,13 @@ def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
             if date_column not in frame.columns:
                 continue
 
+            # Parse to datetime but DO NOT convert to string
             parsed_dates = pd.to_datetime(
                 frame[date_column], errors="coerce", dayfirst=True
             )
-            frame.loc[:, date_column] = parsed_dates.dt.strftime("%m/%d/%Y").where(
-                parsed_dates.notna(), frame[date_column]
-            )
+
+            # Keep datetime objects, leave NaN as-is
+            frame.loc[:, date_column] = parsed_dates
 
         return frame
 
