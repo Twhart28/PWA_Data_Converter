@@ -8,6 +8,10 @@ import pdfplumber
 from openpyxl.styles import Alignment
 
 
+# Analysis mode selector. Choose 1 to use combined peripheral SYS/DIA/MEAN matching
+# or 2 to match only on peripheral systolic pressure.
+ANALYSIS_MODE = 1
+
 COLUMNS = [
     "Source File",
     "Patient ID",
@@ -337,12 +341,17 @@ def _average_pair_rows(pair_df: pd.DataFrame, excluded_fields: set[str]) -> dict
     return averaged
 
 
-def _build_analyzed_data(df: pd.DataFrame) -> tuple[pd.DataFrame, set[int]]:
-    analysis_fields = [
-        "Peripheral Systolic Pressure (mmHg)",
-        "Peripheral Diastolic Pressure (mmHg)",
-        "Peripheral Mean Pressure (mmHg)",
-    ]
+def _build_analyzed_data(df: pd.DataFrame, mode: int) -> tuple[pd.DataFrame, set[int]]:
+    analysis_fields_by_mode: dict[int, list[str]] = {
+        1: [
+            "Peripheral Systolic Pressure (mmHg)",
+            "Peripheral Diastolic Pressure (mmHg)",
+            "Peripheral Mean Pressure (mmHg)",
+        ],
+        2: ["Peripheral Systolic Pressure (mmHg)"],
+    }
+
+    analysis_fields = analysis_fields_by_mode.get(mode, analysis_fields_by_mode[1])
 
     numeric_df = df.copy()
     for field in analysis_fields:
@@ -410,7 +419,7 @@ def save_to_excel(records: list[dict[str, object]], output_path: Path) -> int:
 
     df.drop(columns=["Special Row"], inplace=True)
 
-    analyzed_df, kept_indices = _build_analyzed_data(df)
+    analyzed_df, kept_indices = _build_analyzed_data(df, ANALYSIS_MODE)
 
     df["Analyed"] = "No"
     if kept_indices:
