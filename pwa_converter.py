@@ -161,12 +161,26 @@ def show_pdf_preview(parent: tk.Misc, pdf_path: Path) -> None:
 
     preview_window = tk.Toplevel(parent)
     preview_window.title(pdf_path.name)
-    preview_window.geometry(f"{photo.width() + 40}x{photo.height() + 60}")
 
-    canvas = tk.Canvas(preview_window, bg="white")
-    canvas.pack(fill=tk.BOTH, expand=True)
+    window_width = min(photo.width() + 40, 1000)
+    window_height = min(photo.height() + 80, 900)
+    preview_window.geometry(f"{window_width}x{window_height}")
+
+    container = ttk.Frame(preview_window)
+    container.pack(fill=tk.BOTH, expand=True)
+    container.rowconfigure(0, weight=1)
+    container.columnconfigure(0, weight=1)
+
+    canvas = tk.Canvas(container, bg="white")
+    v_scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=v_scrollbar.set)
+
+    canvas.grid(row=0, column=0, sticky="nsew")
+    v_scrollbar.grid(row=0, column=1, sticky="ns")
+
     canvas.create_image(20, 20, anchor=tk.NW, image=photo)
     canvas.image = photo
+    canvas.configure(scrollregion=canvas.bbox("all"))
 
 
 def extract_text(pdf_path: Path) -> str:
@@ -613,6 +627,8 @@ class ManualOverview:
             "<Configure>",
             lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")),
         )
+        for col in range(8):
+            self.content_frame.columnconfigure(col, weight=1, uniform="manual_overview")
         self.canvas_window = self.canvas.create_window(
             (0, 0), window=self.content_frame, anchor="nw"
         )
@@ -678,64 +694,51 @@ class ManualOverview:
             wraplength=780,
             justify=tk.LEFT,
             font=self.base_font,
-        ).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 10))
+        ).grid(row=0, column=0, columnspan=8, sticky="w", pady=(0, 10))
 
-        header = ttk.Frame(self.content_frame)
-        header.grid(row=1, column=0, sticky="ew")
-        for col in range(9):
-            header.columnconfigure(col, weight=1)
-
-        ttk.Label(header, text="Filename", font=self.value_font).grid(
-            row=0, column=0, rowspan=2, sticky="w", padx=(0, 5)
+        ttk.Label(self.content_frame, text="Filename", font=self.value_font).grid(
+            row=1, column=0, rowspan=2, sticky="w", padx=(0, 5)
         )
 
-        ttk.Label(header, text="Peripheral", font=self.value_font).grid(
-            row=0, column=1, columnspan=3, sticky="ew"
+        ttk.Label(self.content_frame, text="Peripheral", font=self.value_font).grid(
+            row=1, column=1, columnspan=3, sticky="nsew"
         )
-        ttk.Label(header, text="Systolic", font=self.base_font, anchor="center").grid(
-            row=1, column=1, sticky="ew"
-        )
-        ttk.Label(header, text="Diastolic", font=self.base_font, anchor="center").grid(
-            row=1, column=2, sticky="ew"
-        )
-        ttk.Label(header, text="MAP", font=self.base_font, anchor="center").grid(
-            row=1, column=3, sticky="ew"
-        )
-
-        ttk.Label(header, text="Aortic", font=self.value_font).grid(
-            row=0, column=4, columnspan=3, sticky="ew"
-        )
-        ttk.Label(header, text="Systolic", font=self.base_font, anchor="center").grid(
-            row=1, column=4, sticky="ew"
-        )
-        ttk.Label(header, text="Diastolic", font=self.base_font, anchor="center").grid(
-            row=1, column=5, sticky="ew"
-        )
-        ttk.Label(header, text="MAP", font=self.base_font, anchor="center").grid(
-            row=1, column=6, sticky="ew"
+        ttk.Label(
+            self.content_frame, text="Systolic", font=self.base_font, anchor="center"
+        ).grid(row=2, column=1, sticky="nsew")
+        ttk.Label(
+            self.content_frame, text="Diastolic", font=self.base_font, anchor="center"
+        ).grid(row=2, column=2, sticky="nsew")
+        ttk.Label(self.content_frame, text="MAP", font=self.base_font, anchor="center").grid(
+            row=2, column=3, sticky="nsew"
         )
 
-        ttk.Label(header, text="Manual", font=self.value_font).grid(
-            row=0, column=7, rowspan=2, sticky="e", padx=(10, 4)
+        ttk.Label(self.content_frame, text="Aortic", font=self.value_font).grid(
+            row=1, column=4, columnspan=2, sticky="nsew"
         )
-        ttk.Label(header, text="Auto", font=self.value_font).grid(
-            row=0, column=8, rowspan=2, sticky="e", padx=(4, 0)
+        ttk.Label(
+            self.content_frame, text="Systolic", font=self.base_font, anchor="center"
+        ).grid(row=2, column=4, sticky="nsew")
+        ttk.Label(
+            self.content_frame, text="Diastolic", font=self.base_font, anchor="center"
+        ).grid(row=2, column=5, sticky="nsew")
+
+        ttk.Label(self.content_frame, text="Manual", font=self.value_font).grid(
+            row=1, column=6, rowspan=2, sticky="e", padx=(10, 4)
+        )
+        ttk.Label(self.content_frame, text="Auto", font=self.value_font).grid(
+            row=1, column=7, rowspan=2, sticky="e", padx=(4, 0)
         )
 
-        for idx, (row_index, row) in enumerate(patient_rows.iterrows(), start=2):
-            frame = ttk.Frame(self.content_frame, padding=(0, 6))
-            frame.grid(row=idx, column=0, sticky="ew")
-            for col in range(9):
-                frame.columnconfigure(col, weight=1)
-
+        for idx, (row_index, row) in enumerate(patient_rows.iterrows(), start=3):
             file_label = tk.Label(
-                frame,
+                self.content_frame,
                 text=row.get("Source File", ""),
                 fg="blue",
                 cursor="hand2",
                 font=self.base_font,
             )
-            file_label.grid(row=0, column=0, sticky="w", padx=(0, 5))
+            file_label.grid(row=idx, column=0, sticky="w", padx=(0, 5), pady=4)
             source_path = row.get("Source Path")
             if source_path:
                 file_label.bind(
@@ -748,31 +751,42 @@ class ManualOverview:
             sys = row.get("Peripheral Systolic Pressure (mmHg)")
             dia = row.get("Peripheral Diastolic Pressure (mmHg)")
             mean = row.get("Peripheral Mean Pressure (mmHg)")
-            ttk.Label(frame, text=sys or "—", font=self.value_font, anchor="center").grid(
-                row=0, column=1, sticky="ew"
-            )
-            ttk.Label(frame, text=dia or "—", font=self.base_font, anchor="center").grid(
-                row=0, column=2, sticky="ew"
-            )
-            ttk.Label(frame, text=mean or "—", font=self.base_font, anchor="center").grid(
-                row=0, column=3, sticky="ew"
-            )
+            ttk.Label(
+                self.content_frame,
+                text=sys or "—",
+                font=self.value_font,
+                anchor="center",
+            ).grid(row=idx, column=1, sticky="nsew", pady=4)
+            ttk.Label(
+                self.content_frame,
+                text=dia or "—",
+                font=self.base_font,
+                anchor="center",
+            ).grid(row=idx, column=2, sticky="nsew", pady=4)
+            ttk.Label(
+                self.content_frame,
+                text=mean or "—",
+                font=self.base_font,
+                anchor="center",
+            ).grid(row=idx, column=3, sticky="nsew", pady=4)
 
             a_sys = row.get("Aortic Systolic Pressure (mmHg)")
             a_dia = row.get("Aortic Diastolic Pressure (mmHg)")
-            a_pp = row.get("Aortic Pulse Pressure (mmHg)")
             ttk.Label(
-                frame, text=a_sys or "—", font=self.value_font, anchor="center"
-            ).grid(row=0, column=4, sticky="ew")
-            ttk.Label(frame, text=a_dia or "—", font=self.base_font, anchor="center").grid(
-                row=0, column=5, sticky="ew"
-            )
-            ttk.Label(frame, text=a_pp or "—", font=self.base_font, anchor="center").grid(
-                row=0, column=6, sticky="ew"
-            )
+                self.content_frame,
+                text=a_sys or "—",
+                font=self.value_font,
+                anchor="center",
+            ).grid(row=idx, column=4, sticky="nsew", pady=4)
+            ttk.Label(
+                self.content_frame,
+                text=a_dia or "—",
+                font=self.base_font,
+                anchor="center",
+            ).grid(row=idx, column=5, sticky="nsew", pady=4)
 
-            manual_holder = ttk.Frame(frame)
-            manual_holder.grid(row=0, column=7, sticky="e")
+            manual_holder = ttk.Frame(self.content_frame)
+            manual_holder.grid(row=idx, column=6, sticky="e", pady=4)
 
             manual_selected = row_index in manual_selection
             auto_selected = row_index in auto_pair
@@ -788,13 +802,13 @@ class ManualOverview:
             self.manual_buttons[row_index] = manual_button
 
             tk.Button(
-                frame,
+                self.content_frame,
                 text=self._button_text("Auto", auto_selected),
                 state=tk.DISABLED,
                 bg=SELECTED_COLOR if auto_selected else self.default_button_bg,
                 width=9,
                 disabledforeground="black",
-            ).grid(row=0, column=8, sticky="e")
+            ).grid(row=idx, column=7, sticky="e", pady=4)
 
         self.content_frame.update_idletasks()
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
