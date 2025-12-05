@@ -586,6 +586,9 @@ class ManualOverview:
         self.completed = False
         self.manual_pairs: dict[str, list[int]] = {}
         self.manual_buttons: dict[int, tk.Button] = {}
+        self.base_font = ("TkDefaultFont", 11)
+        self.value_font = ("TkDefaultFont", 11, "bold")
+        self.default_button_bg = tk.Button(root).cget("bg")
 
         for patient_id in manual_patients:
             auto_pair = list(auto_pairs.get(patient_id, ()))
@@ -598,7 +601,7 @@ class ManualOverview:
         self.window.geometry("820x560")
         self.window.grab_set()
 
-        self.header_label = ttk.Label(self.window, font=("TkDefaultFont", 11, "bold"))
+        self.header_label = ttk.Label(self.window, font=("TkDefaultFont", 12, "bold"))
         self.header_label.pack(pady=(15, 5))
 
         self.canvas = tk.Canvas(self.window, borderwidth=0)
@@ -617,7 +620,7 @@ class ManualOverview:
         self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 15))
 
         controls = ttk.Frame(self.window)
-        controls.pack(fill=tk.X, pady=10, padx=10)
+        controls.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 15), padx=10)
 
         self.prev_button = ttk.Button(controls, text="Previous", command=self._go_previous)
         self.prev_button.pack(side=tk.LEFT)
@@ -666,25 +669,66 @@ class ManualOverview:
                 "Click a filename to preview the PDF. Use Manual to choose exactly two"
                 " files for averaging."
             ),
-            wraplength=760,
+            wraplength=780,
             justify=tk.LEFT,
+            font=self.base_font,
         ).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 10))
 
-        for idx, (row_index, row) in enumerate(patient_rows.iterrows(), start=1):
-            frame = ttk.Frame(self.content_frame, padding=5)
+        header = ttk.Frame(self.content_frame)
+        header.grid(row=1, column=0, sticky="ew")
+        header.columnconfigure(0, weight=2)
+        header.columnconfigure(1, weight=2)
+        header.columnconfigure(2, weight=2)
+        header.columnconfigure(3, weight=2)
+        header.columnconfigure(4, weight=2)
+        header.columnconfigure(5, weight=1)
+
+        ttk.Label(header, text="Filename", font=self.value_font).grid(
+            row=0, column=0, rowspan=2, sticky="w", padx=(0, 5)
+        )
+
+        ttk.Label(header, text="Peripheral", font=self.value_font).grid(
+            row=0, column=1, columnspan=2, sticky="w"
+        )
+        ttk.Label(header, text="Systolic", font=self.base_font).grid(
+            row=1, column=1, sticky="w", padx=(0, 12)
+        )
+        ttk.Label(header, text="Diastolic / MAP", font=self.base_font).grid(
+            row=1, column=2, sticky="w"
+        )
+
+        ttk.Label(header, text="Aortic", font=self.value_font).grid(
+            row=0, column=3, columnspan=2, sticky="w"
+        )
+        ttk.Label(header, text="Systolic", font=self.base_font).grid(
+            row=1, column=3, sticky="w", padx=(0, 12)
+        )
+        ttk.Label(header, text="Diastolic / PP", font=self.base_font).grid(
+            row=1, column=4, sticky="w"
+        )
+
+        ttk.Label(header, text="Selection", font=self.value_font).grid(
+            row=0, column=5, rowspan=2, sticky="e"
+        )
+
+        for idx, (row_index, row) in enumerate(patient_rows.iterrows(), start=2):
+            frame = ttk.Frame(self.content_frame, padding=(0, 6))
             frame.grid(row=idx, column=0, sticky="ew")
             frame.columnconfigure(0, weight=2)
-            frame.columnconfigure(1, weight=2)
-            frame.columnconfigure(2, weight=2)
+            frame.columnconfigure(1, weight=1)
+            frame.columnconfigure(2, weight=1)
             frame.columnconfigure(3, weight=1)
+            frame.columnconfigure(4, weight=1)
+            frame.columnconfigure(5, weight=1)
 
             file_label = tk.Label(
                 frame,
                 text=row.get("Source File", ""),
                 fg="blue",
                 cursor="hand2",
+                font=self.base_font,
             )
-            file_label.grid(row=0, column=0, sticky="w")
+            file_label.grid(row=0, column=0, sticky="w", padx=(0, 5))
             source_path = row.get("Source Path")
             if source_path:
                 file_label.bind(
@@ -694,26 +738,32 @@ class ManualOverview:
                     ),
                 )
 
-            peripheral = _format_bp_string(
-                row.get("Peripheral Systolic Pressure (mmHg)"),
-                row.get("Peripheral Diastolic Pressure (mmHg)"),
-                row.get("Peripheral Mean Pressure (mmHg)"),
+            sys = row.get("Peripheral Systolic Pressure (mmHg)")
+            dia = row.get("Peripheral Diastolic Pressure (mmHg)")
+            mean = row.get("Peripheral Mean Pressure (mmHg)")
+            ttk.Label(frame, text=sys or "—", font=self.value_font).grid(
+                row=0, column=1, sticky="w"
             )
-            ttk.Label(frame, text=f"Peripheral: {peripheral}").grid(
-                row=0, column=1, sticky="w", padx=5
-            )
+            ttk.Label(
+                frame,
+                text=f"{dia or '—'} / MAP {mean or '—'}",
+                font=self.base_font,
+            ).grid(row=0, column=2, sticky="w")
 
-            aortic = _format_bp_string(
-                row.get("Aortic Systolic Pressure (mmHg)"),
-                row.get("Aortic Diastolic Pressure (mmHg)"),
-                row.get("Aortic Pulse Pressure (mmHg)"),
+            a_sys = row.get("Aortic Systolic Pressure (mmHg)")
+            a_dia = row.get("Aortic Diastolic Pressure (mmHg)")
+            a_pp = row.get("Aortic Pulse Pressure (mmHg)")
+            ttk.Label(frame, text=a_sys or "—", font=self.value_font).grid(
+                row=0, column=3, sticky="w"
             )
-            ttk.Label(frame, text=f"Aortic: {aortic}").grid(
-                row=0, column=2, sticky="w", padx=5
-            )
+            ttk.Label(
+                frame,
+                text=f"{a_dia or '—'} / PP {a_pp or '—'}",
+                font=self.base_font,
+            ).grid(row=0, column=4, sticky="w")
 
             button_holder = ttk.Frame(frame)
-            button_holder.grid(row=0, column=3, sticky="e")
+            button_holder.grid(row=0, column=5, sticky="e")
 
             manual_selected = row_index in manual_selection
             auto_selected = row_index in auto_pair
@@ -722,8 +772,8 @@ class ManualOverview:
                 button_holder,
                 text=self._button_text("Manual", manual_selected),
                 command=lambda idx=row_index: self._toggle_manual(patient_id, idx),
-                bg=SELECTED_COLOR if manual_selected else None,
-                width=8,
+                bg=SELECTED_COLOR if manual_selected else self.default_button_bg,
+                width=9,
             )
             manual_button.pack(side=tk.LEFT, padx=2)
             self.manual_buttons[row_index] = manual_button
@@ -732,8 +782,8 @@ class ManualOverview:
                 button_holder,
                 text=self._button_text("Auto", auto_selected),
                 state=tk.DISABLED,
-                bg=SELECTED_COLOR if auto_selected else None,
-                width=8,
+                bg=SELECTED_COLOR if auto_selected else self.default_button_bg,
+                width=9,
                 disabledforeground="black",
             ).pack(side=tk.LEFT, padx=2)
 
@@ -767,7 +817,7 @@ class ManualOverview:
             selected = row_index in selection
             button.configure(
                 text=self._button_text("Manual", selected),
-                bg=SELECTED_COLOR if selected else None,
+                bg=SELECTED_COLOR if selected else self.default_button_bg,
             )
 
     def _go_previous(self) -> None:
