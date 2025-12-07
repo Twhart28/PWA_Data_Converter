@@ -169,7 +169,7 @@ def show_readme_popup(root: tk.Misc) -> None:
     window.geometry("700x500")
     window.resizable(True, True)
     window.grab_set()
-    configure_popup_close(window, root)
+    window.protocol("WM_DELETE_WINDOW", window.destroy)
 
     text_frame = ttk.Frame(window)
     text_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
