@@ -144,6 +144,64 @@ class LoadingWindow:
             self.progress.stop()
         self.window.destroy()
 
+def show_startup_popup(root: tk.Misc) -> None:
+    """Show a startup popup with image, buttons, and version text."""
+
+    window = tk.Toplevel(root)
+    window.title("PWA Data Converter")
+    window.resizable(False, False)
+
+    # Main container
+    container = ttk.Frame(window)
+    container.pack(padx=20, pady=20)
+
+    # --- Image section ---
+    # Tries to load an image named 'startup_image.png' in the same folder as this script.
+    # You can change this filename/path if you like.
+    image_loaded = False
+    try:
+        image_path = Path(__file__).with_name("startup_image.png")
+        if image_path.exists():
+            img = Image.open(image_path)
+            # Resize gently so it fits on most screens
+            img.thumbnail((900, 600), Image.Resampling.LANCZOS)
+            photo = ImageTk.PhotoImage(img)
+
+            img_label = ttk.Label(container, image=photo)
+            img_label.image = photo  # keep reference so it doesn't get GC'd
+            img_label.pack()
+            image_loaded = True
+    except Exception:
+        image_loaded = False
+
+    if not image_loaded:
+        ttk.Label(
+            container,
+            text="PWA Data Converter",
+            font=("TkDefaultFont", 14, "bold"),
+        ).pack(pady=(0, 10))
+
+    # --- Buttons row (not wired yet, just visual) ---
+    buttons_frame = ttk.Frame(container)
+    buttons_frame.pack(pady=(15, 8))
+
+    read_me_btn = ttk.Button(buttons_frame, text="Read Me")
+    read_me_btn.pack(side=tk.LEFT, padx=10)
+
+    continue_btn = ttk.Button(buttons_frame, text="Continue")
+    continue_btn.pack(side=tk.LEFT, padx=10)
+
+    # --- Version label ---
+    version_label = ttk.Label(
+        container,
+        text="Version 1 (12/07/25)",
+        font=("TkDefaultFont", 10),
+    )
+    version_label.pack(pady=(5, 0))
+
+    # Center and wait until the popup is closed (user can click the X)
+    center_window(window)
+    root.wait_window(window)
 
 def select_input_files(root: tk.Misc | None = None) -> tuple[Path, ...]:
     should_destroy = False
@@ -1180,6 +1238,9 @@ def save_to_excel(
 def main() -> None:
     root = tk.Tk()
     root.withdraw()
+
+    # Show startup popup with image and buttons (not wired yet)
+    show_startup_popup(root)
 
     pdf_paths = select_input_files(root)
     if not pdf_paths:
