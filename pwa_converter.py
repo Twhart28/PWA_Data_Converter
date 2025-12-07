@@ -91,7 +91,14 @@ class LoadingWindow:
         )
         self.spinner_canvas.pack(pady=(0, 10))
 
+        self._center_x, self._center_y = 60, 40
+        self._radius_outer = 30
+        self._radius_inner = 12
+        self._spokes = 12
+        self._spinner_angle = 0.0
+        self._spinner_speed = math.radians(12)
         self._spinner_lines: list[int] = []
+        self._spoke_angles: list[float] = []
         self._spinner_index = 0
         self._create_spinner()
         self._animate_spinner()
@@ -99,27 +106,23 @@ class LoadingWindow:
         self.window.update()
 
     def _create_spinner(self) -> None:
-        center_x, center_y = 60, 40
-        radius_outer = 30
-        radius_inner = 12
-        spokes = 12
-
-        for i in range(spokes):
-            angle = math.radians((360 / spokes) * i)
-            x_start = center_x + radius_inner * math.cos(angle)
-            y_start = center_y + radius_inner * math.sin(angle)
-            x_end = center_x + radius_outer * math.cos(angle)
-            y_end = center_y + radius_outer * math.sin(angle)
+        for i in range(self._spokes):
+            angle = math.radians((360 / self._spokes) * i)
+            self._spoke_angles.append(angle)
             line = self.spinner_canvas.create_line(
-                x_start,
-                y_start,
-                x_end,
-                y_end,
+                *self._line_coords(angle),
                 width=4,
                 fill="#d0d0d0",
                 capstyle=tk.ROUND,
             )
             self._spinner_lines.append(line)
+
+    def _line_coords(self, angle: float) -> tuple[float, float, float, float]:
+        x_start = self._center_x + self._radius_inner * math.cos(angle)
+        y_start = self._center_y + self._radius_inner * math.sin(angle)
+        x_end = self._center_x + self._radius_outer * math.cos(angle)
+        y_end = self._center_y + self._radius_outer * math.sin(angle)
+        return x_start, y_start, x_end, y_end
 
     def _animate_spinner(self) -> None:
         active_color = "#4a90e2"
@@ -128,8 +131,13 @@ class LoadingWindow:
         for index, line in enumerate(self._spinner_lines):
             color = active_color if index == self._spinner_index else faded_color
             self.spinner_canvas.itemconfigure(line, fill=color)
+            angle = self._spoke_angles[index] + self._spinner_angle
+            self.spinner_canvas.coords(line, *self._line_coords(angle))
 
         self._spinner_index = (self._spinner_index + 1) % len(self._spinner_lines)
+        self._spinner_angle = (self._spinner_angle + self._spinner_speed) % (
+            2 * math.pi
+        )
         self._spinner_job = self.window.after(100, self._animate_spinner)
 
     def _release_grab(self, _event: tk.Event | None = None) -> None:  # type: ignore[type-arg]
@@ -173,12 +181,12 @@ def select_output_file(root: tk.Misc | None = None) -> Path | None:
 
     timestamp = datetime.now().strftime("%m/%d/%y %H:%M")
     safe_timestamp = timestamp.replace("/", "-").replace(":", "-")
-    default_name = f"PWA Export ({safe_timestamp}).xlsv"
+    default_name = f"PWA Export ({safe_timestamp}).xlsx"
     output_path = filedialog.asksaveasfilename(
         title="Save Excel file as",
         initialfile=default_name,
-        defaultextension=".xlsv",
-        filetypes=[("Excel Workbook", "*.xlsv"), ("All Files", "*.*")],
+        defaultextension=".xlsx",
+        filetypes=[("Excel Workbook", "*.xlsx"), ("All Files", "*.*")],
         parent=root,
     )
     root.update()
