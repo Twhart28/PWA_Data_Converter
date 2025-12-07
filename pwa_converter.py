@@ -12,7 +12,7 @@ from PIL import Image, ImageTk
 
 # Analysis mode selector. Choose 1 to use combined peripheral SYS/DIA/MEAN matching
 # or 2 to match only on peripheral systolic pressure.
-ANALYSIS_MODE = 1
+ANALYSIS_MODE = 2
 
 COLUMNS = [
     "Source File",
@@ -503,16 +503,34 @@ def _closest_pair_indices(df: pd.DataFrame, fields: list[str]) -> tuple[int, int
     if len(df) < 2:
         return None
 
+    systolic_only = fields == ["Peripheral Systolic Pressure (mmHg)"]
+    diastolic_values = (
+        pd.to_numeric(df["Peripheral Diastolic Pressure (mmHg)"], errors="coerce")
+        if systolic_only and "Peripheral Diastolic Pressure (mmHg)" in df
+        else None
+    )
+
     min_distance = float("inf")
+    min_diastolic_diff = float("inf")
     closest_pair: tuple[int, int] | None = None
 
     for i, idx_i in enumerate(df.index[:-1]):
         for idx_j in df.index[i + 1 :]:
             diff = df.loc[idx_i, fields] - df.loc[idx_j, fields]
             distance = (diff.pow(2).sum()) ** 0.5
+            diastolic_diff = float("inf")
+            if systolic_only and diastolic_values is not None:
+                diastolic_diff = diastolic_values.loc[idx_i] - diastolic_values.loc[idx_j]
+                diastolic_diff = abs(diastolic_diff) if pd.notna(diastolic_diff) else float("inf")
+
             if distance < min_distance:
                 min_distance = distance
+                min_diastolic_diff = diastolic_diff
                 closest_pair = (idx_i, idx_j)
+            elif distance == min_distance and systolic_only:
+                if diastolic_diff < min_diastolic_diff:
+                    min_diastolic_diff = diastolic_diff
+                    closest_pair = (idx_i, idx_j)
 
     return closest_pair
 
