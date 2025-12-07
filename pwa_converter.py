@@ -748,11 +748,11 @@ class ManualOverview:
         ).grid(row=2, column=5, sticky="n")
 
         ttk.Label(
-            self.content_frame, text="Manual", font=self.value_font, anchor="e"
-        ).grid(row=1, column=6, rowspan=2, sticky="e", padx=(10, 4))
+            self.content_frame, text="Manual", font=self.value_font, anchor="center"
+        ).grid(row=1, column=6, rowspan=2, sticky="n")
         ttk.Label(
-            self.content_frame, text="Auto", font=self.value_font, anchor="e"
-        ).grid(row=1, column=7, rowspan=2, sticky="e", padx=(4, 0))
+            self.content_frame, text="Auto", font=self.value_font, anchor="center"
+        ).grid(row=1, column=7, rowspan=2, sticky="n")
 
         for idx, (row_index, row) in enumerate(patient_rows.iterrows(), start=3):
             file_label = tk.Label(
