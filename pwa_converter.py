@@ -610,50 +610,61 @@ class ManualOverview:
             fallback = list(patient_rows.index[:2])
             self.manual_pairs[patient_id] = auto_pair[:2] if len(auto_pair) == 2 else fallback
 
+        # ---- Toplevel window ----
         self.window = tk.Toplevel(root)
         self.window.title("Manual overview")
-        self.window.geometry("820x560")
+        # Slightly wider so long filenames fit comfortably
+        self.window.geometry("811x520")
+        # Keep layout static – user can’t resize and stretch the grid
+        self.window.resizable(False, False)
         self.window.grab_set()
 
+        # row 0: header
+        # row 1: content
+        # row 2: bottom buttons
+
+        # ---- Header ----
         self.header_label = ttk.Label(self.window, font=("TkDefaultFont", 12, "bold"))
-        self.header_label.pack(pady=(15, 5))
+        self.header_label.grid(row=0, column=0, pady=(15, 5), padx=15, sticky="w")
 
-        self.canvas = tk.Canvas(self.window, borderwidth=0)
-        self.scrollbar = ttk.Scrollbar(
-            self.window, orient="vertical", command=self.canvas.yview
-        )
-        self.content_frame = ttk.Frame(self.canvas)
-        self.content_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")),
-        )
-        for col in range(8):
-            self.content_frame.columnconfigure(col, weight=1, uniform="manual_overview")
-        self.canvas_window = self.canvas.create_window(
-            (0, 0), window=self.content_frame, anchor="nw"
-        )
-        self.canvas.bind(
-            "<Configure>",
-            lambda e: self.canvas.itemconfig(self.canvas_window, width=e.width),
-        )
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        # ---- Content area (no scrollbars, fixed width columns) ----
+        content_container = ttk.Frame(self.window)
+        content_container.grid(row=1, column=0, sticky="n", padx=15, pady=(0, 5))
 
-        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(15, 0))
-        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 15))
+        self.content_frame = ttk.Frame(content_container)
+        self.content_frame.grid(row=0, column=0, sticky="nw")
 
+        # Fixed column widths so grid doesn’t resize with the window
+        # 0: filename (made wide so full filename is visible)
+        self.content_frame.columnconfigure(0, minsize=200)
+        # 1–3: peripheral SYS / DIA / MAP
+        self.content_frame.columnconfigure(1, minsize=80)
+        self.content_frame.columnconfigure(2, minsize=80)
+        self.content_frame.columnconfigure(3, minsize=80)
+        # 4–5: aortic SYS / DIA
+        self.content_frame.columnconfigure(4, minsize=80)
+        self.content_frame.columnconfigure(5, minsize=80)
+        # 6–7: Manual / Auto buttons
+        self.content_frame.columnconfigure(6, minsize=90)
+        self.content_frame.columnconfigure(7, minsize=90)
+
+        # ---- Bottom controls (single bar at bottom, no right-hand pane) ----
         controls = ttk.Frame(self.window)
-        controls.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 15), padx=10)
+        controls.grid(row=2, column=0, sticky="ew", pady=(5, 15), padx=10)
+        controls.columnconfigure(0, weight=1)
+        controls.columnconfigure(1, weight=1)
+        controls.columnconfigure(2, weight=1)
 
         self.prev_button = ttk.Button(controls, text="Previous", command=self._go_previous)
-        self.prev_button.pack(side=tk.LEFT)
+        self.prev_button.grid(row=0, column=0, sticky="w")
 
         self.save_button = ttk.Button(
             controls, text="Save all, complete analysis", command=self._complete
         )
-        self.save_button.pack(side=tk.LEFT, expand=True, padx=15)
+        self.save_button.grid(row=0, column=1, sticky="ew", padx=15)
 
         self.next_button = ttk.Button(controls, text="Next", command=self._go_next)
-        self.next_button.pack(side=tk.RIGHT)
+        self.next_button.grid(row=0, column=2, sticky="e")
 
         self.window.protocol("WM_DELETE_WINDOW", self.window.destroy)
 
@@ -696,39 +707,52 @@ class ManualOverview:
             font=self.base_font,
         ).grid(row=0, column=0, columnspan=8, sticky="w", pady=(0, 10))
 
-        ttk.Label(self.content_frame, text="Filename", font=self.value_font).grid(
-            row=1, column=0, rowspan=2, sticky="w", padx=(0, 5)
-        )
+        ttk.Label(
+            self.content_frame,
+            text="Filename",
+            font=self.value_font,
+            anchor="w",
+        ).grid(row=1, column=0, rowspan=2, sticky="w", padx=(0, 5))
 
-        ttk.Label(self.content_frame, text="Peripheral", font=self.value_font).grid(
-            row=1, column=1, columnspan=3, sticky="nsew"
-        )
+        # Centered group header over peripheral SYS/DIA/MAP
+        ttk.Label(
+            self.content_frame,
+            text="Peripheral",
+            font=self.value_font,
+            anchor="center",
+        ).grid(row=1, column=1, columnspan=3, sticky="n")
+
         ttk.Label(
             self.content_frame, text="Systolic", font=self.base_font, anchor="center"
-        ).grid(row=2, column=1, sticky="nsew")
+        ).grid(row=2, column=1, sticky="n")
         ttk.Label(
             self.content_frame, text="Diastolic", font=self.base_font, anchor="center"
-        ).grid(row=2, column=2, sticky="nsew")
-        ttk.Label(self.content_frame, text="MAP", font=self.base_font, anchor="center").grid(
-            row=2, column=3, sticky="nsew"
-        )
+        ).grid(row=2, column=2, sticky="n")
+        ttk.Label(
+            self.content_frame, text="MAP", font=self.base_font, anchor="center"
+        ).grid(row=2, column=3, sticky="n")
 
-        ttk.Label(self.content_frame, text="Aortic", font=self.value_font).grid(
-            row=1, column=4, columnspan=2, sticky="nsew"
-        )
+        # Centered group header over aortic SYS/DIA
+        ttk.Label(
+            self.content_frame,
+            text="Aortic",
+            font=self.value_font,
+            anchor="center",
+        ).grid(row=1, column=4, columnspan=2, sticky="n")
+
         ttk.Label(
             self.content_frame, text="Systolic", font=self.base_font, anchor="center"
-        ).grid(row=2, column=4, sticky="nsew")
+        ).grid(row=2, column=4, sticky="n")
         ttk.Label(
             self.content_frame, text="Diastolic", font=self.base_font, anchor="center"
-        ).grid(row=2, column=5, sticky="nsew")
+        ).grid(row=2, column=5, sticky="n")
 
-        ttk.Label(self.content_frame, text="Manual", font=self.value_font).grid(
-            row=1, column=6, rowspan=2, sticky="e", padx=(10, 4)
-        )
-        ttk.Label(self.content_frame, text="Auto", font=self.value_font).grid(
-            row=1, column=7, rowspan=2, sticky="e", padx=(4, 0)
-        )
+        ttk.Label(
+            self.content_frame, text="Manual", font=self.value_font, anchor="e"
+        ).grid(row=1, column=6, rowspan=2, sticky="e", padx=(10, 4))
+        ttk.Label(
+            self.content_frame, text="Auto", font=self.value_font, anchor="e"
+        ).grid(row=1, column=7, rowspan=2, sticky="e", padx=(4, 0))
 
         for idx, (row_index, row) in enumerate(patient_rows.iterrows(), start=3):
             file_label = tk.Label(
@@ -737,6 +761,8 @@ class ManualOverview:
                 fg="blue",
                 cursor="hand2",
                 font=self.base_font,
+                anchor="w",
+                width=20,
             )
             file_label.grid(row=idx, column=0, sticky="w", padx=(0, 5), pady=4)
             source_path = row.get("Source Path")
@@ -811,8 +837,6 @@ class ManualOverview:
             ).grid(row=idx, column=7, sticky="e", pady=4)
 
         self.content_frame.update_idletasks()
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        self.canvas.yview_moveto(0)
         self._update_nav_buttons()
 
     def _update_nav_buttons(self) -> None:
