@@ -1,4 +1,3 @@
-import math
 import re
 from datetime import datetime
 from pathlib import Path
@@ -73,72 +72,49 @@ SELECTED_COLOR = "#c8f7c5"
 
 
 class LoadingWindow:
-    def __init__(self, root: tk.Misc, message: str):
+    def __init__(self, root: tk.Misc, message: str, total_steps: int | None = None):
         self.window = tk.Toplevel(root)
         self.window.title("PWA Data Converter")
-        self.window.geometry("300x140")
+        self.window.geometry("340x160")
         self.window.resizable(False, False)
         self.window.grab_set()
 
         self.window.bind("<Unmap>", self._release_grab)
         self.window.bind("<Map>", self._restore_grab)
 
-        label = ttk.Label(self.window, text=message, wraplength=260)
+        self.total_steps = total_steps if total_steps and total_steps > 0 else None
+
+        label = ttk.Label(self.window, text=message, wraplength=300)
         label.pack(pady=(20, 10), padx=10)
 
-        self.spinner_canvas = tk.Canvas(
-            self.window, width=120, height=80, highlightthickness=0
+        progress_mode = "determinate" if self.total_steps else "indeterminate"
+        self.progress = ttk.Progressbar(
+            self.window,
+            orient="horizontal",
+            mode=progress_mode,
+            length=280,
+            maximum=self.total_steps or 100,
         )
-        self.spinner_canvas.pack(pady=(0, 10))
+        self.progress.pack(pady=(0, 10))
 
-        self._center_x, self._center_y = 60, 40
-        self._radius_outer = 30
-        self._radius_inner = 12
-        self._spokes = 12
-        self._spinner_angle = 0.0
-        self._spinner_speed = math.radians(12)
-        self._spinner_lines: list[int] = []
-        self._spoke_angles: list[float] = []
-        self._spinner_index = 0
-        self._create_spinner()
-        self._animate_spinner()
+        if progress_mode == "indeterminate":
+            self.progress.start(10)
+
+        self.status_label = ttk.Label(self.window, text="")
+        self.status_label.pack(pady=(0, 10))
 
         self.window.update()
 
-    def _create_spinner(self) -> None:
-        for i in range(self._spokes):
-            angle = math.radians((360 / self._spokes) * i)
-            self._spoke_angles.append(angle)
-            line = self.spinner_canvas.create_line(
-                *self._line_coords(angle),
-                width=4,
-                fill="#d0d0d0",
-                capstyle=tk.ROUND,
-            )
-            self._spinner_lines.append(line)
+    def update_progress(self, completed_steps: int) -> None:
+        if not self.total_steps:
+            return
 
-    def _line_coords(self, angle: float) -> tuple[float, float, float, float]:
-        x_start = self._center_x + self._radius_inner * math.cos(angle)
-        y_start = self._center_y + self._radius_inner * math.sin(angle)
-        x_end = self._center_x + self._radius_outer * math.cos(angle)
-        y_end = self._center_y + self._radius_outer * math.sin(angle)
-        return x_start, y_start, x_end, y_end
-
-    def _animate_spinner(self) -> None:
-        active_color = "#4a90e2"
-        faded_color = "#d0d0d0"
-
-        for index, line in enumerate(self._spinner_lines):
-            color = active_color if index == self._spinner_index else faded_color
-            self.spinner_canvas.itemconfigure(line, fill=color)
-            angle = self._spoke_angles[index] + self._spinner_angle
-            self.spinner_canvas.coords(line, *self._line_coords(angle))
-
-        self._spinner_index = (self._spinner_index + 1) % len(self._spinner_lines)
-        self._spinner_angle = (self._spinner_angle + self._spinner_speed) % (
-            2 * math.pi
+        completed_steps = min(completed_steps, self.total_steps)
+        self.progress["value"] = completed_steps
+        self.status_label.config(
+            text=f"Processed {completed_steps} of {self.total_steps} files"
         )
-        self._spinner_job = self.window.after(100, self._animate_spinner)
+        self.window.update_idletasks()
 
     def _release_grab(self, _event: tk.Event | None = None) -> None:  # type: ignore[type-arg]
         self.window.grab_release()
@@ -147,8 +123,8 @@ class LoadingWindow:
         self.window.grab_set()
 
     def close(self) -> None:
-        if hasattr(self, "_spinner_job"):
-            self.window.after_cancel(self._spinner_job)
+        if self.progress.cget("mode") == "indeterminate":
+            self.progress.stop()
         self.window.destroy()
 
 
@@ -1179,13 +1155,16 @@ def main() -> None:
         root.destroy()
         return
 
-    loading = LoadingWindow(root, "Analyzing files and preparing data...")
+    loading = LoadingWindow(
+        root, "Analyzing files and preparing data...", total_steps=len(pdf_paths)
+    )
 
     records: list[dict[str, object]] = []
-    for path in pdf_paths:
+    for index, path in enumerate(pdf_paths, start=1):
         record = process_pdf(path)
         record["Source Path"] = str(path)
         records.append(record)
+        loading.update_progress(index)
 
     prepared_df, _ = _prepare_dataframe(records)
     _, _, auto_pairs = _build_analyzed_data(prepared_df, ANALYSIS_MODE)
@@ -1213,8 +1192,9 @@ def main() -> None:
     if manual_pairs is None:
         manual_pairs = auto_pairs
 
-    export_loading = LoadingWindow(root, "Creating Excel export...")
+    export_loading = LoadingWindow(root, "Creating Excel export...", total_steps=1)
     exported_count = save_to_excel(records, output_path, manual_pairs)
+    export_loading.update_progress(1)
     export_loading.close()
 
     messagebox.showinfo(
