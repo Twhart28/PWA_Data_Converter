@@ -134,6 +134,18 @@ def select_output_file(root: tk.Misc | None = None) -> Path | None:
     return Path(output_path)
 
 
+def _bind_mousewheel(canvas: tk.Canvas) -> None:
+    def _on_mousewheel(event: tk.Event) -> None:  # type: ignore[type-arg]
+        if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0:
+            canvas.yview_scroll(-1, "units")
+        elif getattr(event, "num", None) == 5 or getattr(event, "delta", 0) < 0:
+            canvas.yview_scroll(1, "units")
+
+    canvas.bind("<MouseWheel>", _on_mousewheel)
+    canvas.bind("<Button-4>", _on_mousewheel)
+    canvas.bind("<Button-5>", _on_mousewheel)
+
+
 def show_pdf_preview(parent: tk.Misc, pdf_path: Path) -> None:
     if not pdf_path.exists():
         messagebox.showerror(
@@ -181,6 +193,7 @@ def show_pdf_preview(parent: tk.Misc, pdf_path: Path) -> None:
     canvas.create_image(20, 20, anchor=tk.NW, image=photo)
     canvas.image = photo
     canvas.configure(scrollregion=canvas.bbox("all"))
+    _bind_mousewheel(canvas)
 
 
 def extract_text(pdf_path: Path) -> str:
@@ -600,6 +613,7 @@ class ManualOverview:
         self.completed = False
         self.manual_pairs: dict[str, list[int]] = {}
         self.manual_buttons: dict[int, tk.Button] = {}
+        self.data_sheet_folder: Path | None = None
         self.base_font = ("TkDefaultFont", 11)
         self.value_font = ("TkDefaultFont", 11, "bold")
         self.default_button_bg = tk.Button(root).cget("bg")
@@ -624,8 +638,22 @@ class ManualOverview:
         # row 2: bottom buttons
 
         # ---- Header ----
-        self.header_label = ttk.Label(self.window, font=("TkDefaultFont", 12, "bold"))
-        self.header_label.grid(row=0, column=0, pady=(15, 5), padx=15, sticky="w")
+        header_container = ttk.Frame(self.window)
+        header_container.grid(row=0, column=0, pady=(15, 5), padx=15, sticky="w")
+
+        self.header_label = ttk.Label(
+            header_container, font=("TkDefaultFont", 12, "bold")
+        )
+        self.header_label.pack(side=tk.LEFT)
+
+        self.data_sheet_link = tk.Label(
+            header_container,
+            text=" [Data Collection Sheet]",
+            fg="blue",
+            cursor="hand2",
+            font=self.base_font,
+        )
+        self.data_sheet_link.pack(side=tk.LEFT, padx=(10, 0))
 
         # ---- Content area (no scrollbars, fixed width columns) ----
         content_container = ttk.Frame(self.window)
@@ -675,10 +703,62 @@ class ManualOverview:
             (self.df["Patient ID"] == patient_id) & (self.df["Special Row"] != True)
         ]
 
+    def _data_sheet_path(self, patient_id: str) -> Path | None:
+        if self.data_sheet_folder is None or not self.data_sheet_folder.exists():
+            return None
+
+        subject_prefix = re.split(r"[ _]", patient_id, maxsplit=1)[0].lower()
+        for candidate in sorted(self.data_sheet_folder.glob("*.pdf")):
+            if candidate.stem.lower().startswith(subject_prefix):
+                return candidate
+        return None
+
+    def _prompt_for_data_sheet_folder(self) -> bool:
+        selected = filedialog.askdirectory(
+            title="Select data collection sheet folder", parent=self.window
+        )
+        if not selected:
+            return False
+        self.data_sheet_folder = Path(selected)
+        return True
+
+    def _open_data_collection_sheet(self, patient_id: str) -> None:
+        if self.data_sheet_folder is None or not self.data_sheet_folder.exists():
+            if not self._prompt_for_data_sheet_folder():
+                return
+
+        data_sheet_path = self._data_sheet_path(patient_id)
+        if data_sheet_path is None:
+            retry = messagebox.askyesno(
+                "Data collection sheet",
+                "No matching data collection sheet was found."
+                " Would you like to choose another folder?",
+                parent=self.window,
+            )
+            if retry and self._prompt_for_data_sheet_folder():
+                data_sheet_path = self._data_sheet_path(patient_id)
+            else:
+                return
+
+        if data_sheet_path is None:
+            messagebox.showerror(
+                "Data collection sheet",
+                "No matching data collection sheet was found in the selected folder.",
+                parent=self.window,
+            )
+            return
+
+        show_pdf_preview(self.window, data_sheet_path)
+
     def _update_header(self, patient_id: str) -> None:
         total = len(self.manual_patients)
         self.header_label.configure(
             text=f"Reviewing record {self.current_index + 1} of {total} — {patient_id}"
+        )
+        self.data_sheet_link.unbind("<Button-1>")
+        self.data_sheet_link.bind(
+            "<Button-1>",
+            lambda _e, pid=patient_id: self._open_data_collection_sheet(pid),
         )
 
     def _button_text(self, label: str, selected: bool) -> str:
