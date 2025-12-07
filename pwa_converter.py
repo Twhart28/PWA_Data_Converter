@@ -87,6 +87,21 @@ def center_window(window: tk.Misc) -> None:
     window.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
 
 
+def _create_centered_dialog_parent(root: tk.Misc) -> tk.Toplevel:
+    """Create an invisible parent window to center native dialogs."""
+
+    dialog_parent = tk.Toplevel(root)
+    dialog_parent.overrideredirect(True)
+    dialog_parent.attributes("-alpha", 0.0)
+    dialog_parent.geometry("1x1")
+
+    center_window(dialog_parent)
+    dialog_parent.deiconify()
+    dialog_parent.lift()
+    dialog_parent.update_idletasks()
+    return dialog_parent
+
+
 class LoadingWindow:
     def __init__(self, root: tk.Misc, message: str, total_steps: int | None = None):
         self.window = tk.Toplevel(root)
@@ -152,12 +167,14 @@ def select_input_files(root: tk.Misc | None = None) -> tuple[Path, ...]:
         root.withdraw()
         should_destroy = True
 
+    dialog_parent = _create_centered_dialog_parent(root)
     file_paths = filedialog.askopenfilenames(
         title="Select PWA PDF files",
         filetypes=[("PDF Files", "*.pdf")],
-        parent=root,
+        parent=dialog_parent,
     )
     root.update()
+    dialog_parent.destroy()
 
     if should_destroy:
         root.destroy()
@@ -172,6 +189,7 @@ def select_output_file(root: tk.Misc | None = None) -> Path | None:
         root.withdraw()
         should_destroy = True
 
+    dialog_parent = _create_centered_dialog_parent(root)
     timestamp = datetime.now().strftime("%m/%d/%y %H:%M")
     safe_timestamp = timestamp.replace("/", "-").replace(":", "-")
     default_name = f"PWA Export ({safe_timestamp}).xlsx"
@@ -180,9 +198,10 @@ def select_output_file(root: tk.Misc | None = None) -> Path | None:
         initialfile=default_name,
         defaultextension=".xlsx",
         filetypes=[("Excel Workbook", "*.xlsx"), ("All Files", "*.*")],
-        parent=root,
+        parent=dialog_parent,
     )
     root.update()
+    dialog_parent.destroy()
     if should_destroy:
         root.destroy()
     if not output_path:
@@ -809,9 +828,11 @@ class ManualOverview:
         return None
 
     def _prompt_for_data_sheet_folder(self) -> bool:
+        dialog_parent = _create_centered_dialog_parent(self.window)
         selected = filedialog.askdirectory(
-            title="Select data collection sheet folder", parent=self.window
+            title="Select data collection sheet folder", parent=dialog_parent
         )
+        dialog_parent.destroy()
         if not selected:
             return False
         self.data_sheet_folder = Path(selected)
