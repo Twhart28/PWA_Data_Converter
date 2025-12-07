@@ -1,4 +1,5 @@
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 import tkinter as tk
@@ -87,13 +88,29 @@ def center_window(window: tk.Misc) -> None:
     window.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
 
 
+def terminate_application(root: tk.Misc) -> None:
+    """Close the Tk root and terminate the entire application."""
+
+    try:
+        root.destroy()
+    finally:
+        sys.exit(0)
+
+
+def configure_popup_close(window: tk.Toplevel, root: tk.Misc) -> None:
+    """Ensure clicking the close button exits the whole application."""
+
+    window.protocol("WM_DELETE_WINDOW", lambda: terminate_application(root))
+
+
 class LoadingWindow:
     def __init__(self, root: tk.Misc, message: str, total_steps: int | None = None):
         self.window = tk.Toplevel(root)
-        self.window.title("PWA Data Converter")
+        self.window.title("PWA Data Analyzer")
         self.window.geometry("340x160")
         self.window.resizable(False, False)
         self.window.grab_set()
+        configure_popup_close(self.window, root)
 
         self.window.bind("<Unmap>", self._release_grab)
         self.window.bind("<Map>", self._restore_grab)
@@ -144,12 +161,51 @@ class LoadingWindow:
             self.progress.stop()
         self.window.destroy()
 
-def show_startup_popup(root: tk.Misc) -> None:
+def show_readme_popup(root: tk.Misc) -> None:
+    """Display the README contents in a popup window."""
+
+    window = tk.Toplevel(root)
+    window.title("Read Me")
+    window.geometry("700x500")
+    window.resizable(True, True)
+    window.grab_set()
+    configure_popup_close(window, root)
+
+    text_frame = ttk.Frame(window)
+    text_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+    scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+    text_widget = tk.Text(text_frame, wrap=tk.WORD, yscrollcommand=scrollbar.set)
+    text_widget.pack(fill=tk.BOTH, expand=True)
+    scrollbar.config(command=text_widget.yview)
+
+    readme_path = Path(__file__).with_name("README.md")
+    if readme_path.exists():
+        content = readme_path.read_text(encoding="utf-8")
+    else:
+        content = "README file not found."
+
+    text_widget.insert(tk.END, content)
+    text_widget.configure(state="disabled")
+
+    close_button = ttk.Button(window, text="Close", command=window.destroy)
+    close_button.pack(pady=10)
+
+    center_window(window)
+    root.wait_window(window)
+
+
+def show_startup_popup(root: tk.Misc) -> bool:
     """Show a startup popup with image, buttons, and version text."""
 
     window = tk.Toplevel(root)
-    window.title("PWA Data Converter")
+    window.title("PWA Data Analyzer")
     window.resizable(False, False)
+    configure_popup_close(window, root)
+
+    proceed = {"continue": False}
 
     # Main container
     container = ttk.Frame(window)
@@ -160,8 +216,12 @@ def show_startup_popup(root: tk.Misc) -> None:
     # You can change this filename/path if you like.
     image_loaded = False
     try:
-        image_path = Path(__file__).with_name("startup_image.png")
-        if image_path.exists():
+        possible_names = ["startup_image.png", "statup_image.png"]
+        image_path = next(
+            (Path(__file__).with_name(name) for name in possible_names if Path(__file__).with_name(name).exists()),
+            None,
+        )
+        if image_path:
             img = Image.open(image_path)
             # Resize gently so it fits on most screens
             img.thumbnail((900, 600), Image.Resampling.LANCZOS)
@@ -177,18 +237,22 @@ def show_startup_popup(root: tk.Misc) -> None:
     if not image_loaded:
         ttk.Label(
             container,
-            text="PWA Data Converter",
+            text="PWA Data Analyzer",
             font=("TkDefaultFont", 14, "bold"),
         ).pack(pady=(0, 10))
 
-    # --- Buttons row (not wired yet, just visual) ---
+    # --- Buttons row ---
     buttons_frame = ttk.Frame(container)
     buttons_frame.pack(pady=(15, 8))
 
-    read_me_btn = ttk.Button(buttons_frame, text="Read Me")
+    read_me_btn = ttk.Button(buttons_frame, text="Read Me", command=lambda: show_readme_popup(root))
     read_me_btn.pack(side=tk.LEFT, padx=10)
 
-    continue_btn = ttk.Button(buttons_frame, text="Continue")
+    def _continue() -> None:
+        proceed["continue"] = True
+        window.destroy()
+
+    continue_btn = ttk.Button(buttons_frame, text="Continue", command=_continue)
     continue_btn.pack(side=tk.LEFT, padx=10)
 
     # --- Version label ---
@@ -202,6 +266,7 @@ def show_startup_popup(root: tk.Misc) -> None:
     # Center and wait until the popup is closed (user can click the X)
     center_window(window)
     root.wait_window(window)
+    return proceed["continue"]
 
 def select_input_files(root: tk.Misc | None = None) -> tuple[Path, ...]:
     should_destroy = False
@@ -293,6 +358,7 @@ def show_pdf_preview(parent: tk.Misc, pdf_path: Path) -> None:
 
     preview_window = tk.Toplevel(parent)
     preview_window.title(pdf_path.name)
+    configure_popup_close(preview_window, parent)
 
     preview_window.geometry(f"{window_width}x{window_height}")
 
@@ -690,6 +756,7 @@ def show_mode_choice_popup(root: tk.Misc, overview_count: int) -> bool:
     window.geometry("420x220")
     window.resizable(False, False)
     window.grab_set()
+    configure_popup_close(window, root)
     window.bind("<Unmap>", lambda _e: window.grab_release())
     window.bind("<Map>", lambda _e: window.grab_set())
 
@@ -719,7 +786,7 @@ def show_mode_choice_popup(root: tk.Misc, overview_count: int) -> bool:
         command=lambda: _select("manual"),
     ).pack(side=tk.LEFT, padx=10)
 
-    window.protocol("WM_DELETE_WINDOW", lambda: _select("auto"))
+    window.protocol("WM_DELETE_WINDOW", lambda: terminate_application(root))
     center_window(window)
     root.wait_window(window)
     return choice["mode"] == "manual"
@@ -778,6 +845,7 @@ class ManualOverview:
         self.window.grab_set()
         self.window.bind("<Unmap>", self._release_grab)
         self.window.bind("<Map>", self._restore_grab)
+        configure_popup_close(self.window, root)
 
         # row 0: header
         # row 1: content
@@ -840,7 +908,7 @@ class ManualOverview:
         self.next_button = ttk.Button(controls, text="Next", command=self._go_next)
         self.next_button.grid(row=0, column=2, sticky="e")
 
-        self.window.protocol("WM_DELETE_WINDOW", self.window.destroy)
+        self.window.protocol("WM_DELETE_WINDOW", lambda: terminate_application(root))
 
         self._render_patient()
         center_window(self.window)
@@ -1240,17 +1308,19 @@ def main() -> None:
     root.withdraw()
 
     # Show startup popup with image and buttons (not wired yet)
-    show_startup_popup(root)
+    should_continue = show_startup_popup(root)
+    if not should_continue:
+        terminate_application(root)
 
     pdf_paths = select_input_files(root)
     if not pdf_paths:
-        messagebox.showinfo("PWA Data Converter", "No PDF files were selected.")
+        messagebox.showinfo("PWA Data Analyzer", "No PDF files were selected.")
         root.destroy()
         return
 
     output_path = select_output_file(root)
     if not output_path:
-        messagebox.showinfo("PWA Data Converter", "No output location selected.")
+        messagebox.showinfo("PWA Data Analyzer", "No output location selected.")
         root.destroy()
         return
 
@@ -1297,7 +1367,7 @@ def main() -> None:
     export_loading.close()
 
     messagebox.showinfo(
-        "PWA Data Converter",
+        "PWA Data Analyzer",
         f"Exported {exported_count} record(s) to {output_path}",
     )
 
