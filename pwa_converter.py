@@ -610,7 +610,7 @@ def show_mode_choice_popup(root: tk.Misc, overview_count: int) -> bool:
     choice = {"mode": "auto"}
 
     window = tk.Toplevel(root)
-    window.title("Analysis mode")
+    window.title("Analysis Mode")
     window.geometry("420x220")
     window.resizable(False, False)
     window.grab_set()
@@ -639,7 +639,7 @@ def show_mode_choice_popup(root: tk.Misc, overview_count: int) -> bool:
     )
     ttk.Button(
         button_frame,
-        text="Manual overview",
+        text="Manual Overview",
         command=lambda: _select("manual"),
     ).pack(side=tk.LEFT, padx=10)
 
@@ -693,7 +693,7 @@ class ManualOverview:
 
         # ---- Toplevel window ----
         self.window = tk.Toplevel(root)
-        self.window.title("Manual overview")
+        self.window.title("Manual Overview")
         # Slightly wider so long filenames fit comfortably
         self.window.geometry("811x520")
         # Keep layout static – user can’t resize and stretch the grid
@@ -1039,7 +1039,7 @@ class ManualOverview:
             selection = self.manual_pairs.get(patient_id, [])
             if len(selection) != 2:
                 messagebox.showerror(
-                    "Manual overview",
+                    "Manual Overview",
                     "Please choose exactly two files for each patient before saving.",
                     parent=self.window,
                 )
