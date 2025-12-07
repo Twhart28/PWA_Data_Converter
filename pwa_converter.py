@@ -75,13 +75,6 @@ def center_window(window: tk.Misc) -> None:
     """Center a Tkinter window on the screen."""
 
     window.update_idletasks()
-
-    try:
-        window.tk.call("tk::PlaceWindow", window.winfo_toplevel(), "center")
-        return
-    except tk.TclError:
-        pass
-
     width = window.winfo_width()
     height = window.winfo_height()
 
