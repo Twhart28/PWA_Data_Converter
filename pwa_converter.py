@@ -1,4 +1,6 @@
+import math
 import re
+from datetime import datetime
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -78,17 +80,67 @@ class LoadingWindow:
         self.window.resizable(False, False)
         self.window.grab_set()
 
+        self.window.bind("<Unmap>", self._release_grab)
+        self.window.bind("<Map>", self._restore_grab)
+
         label = ttk.Label(self.window, text=message, wraplength=260)
         label.pack(pady=(20, 10), padx=10)
 
-        self.progress = ttk.Progressbar(self.window, mode="indeterminate", length=240)
-        self.progress.pack(pady=(0, 15))
-        self.progress.start(10)
+        self.spinner_canvas = tk.Canvas(
+            self.window, width=120, height=80, highlightthickness=0
+        )
+        self.spinner_canvas.pack(pady=(0, 10))
+
+        self._spinner_lines: list[int] = []
+        self._spinner_index = 0
+        self._create_spinner()
+        self._animate_spinner()
 
         self.window.update()
 
+    def _create_spinner(self) -> None:
+        center_x, center_y = 60, 40
+        radius_outer = 30
+        radius_inner = 12
+        spokes = 12
+
+        for i in range(spokes):
+            angle = math.radians((360 / spokes) * i)
+            x_start = center_x + radius_inner * math.cos(angle)
+            y_start = center_y + radius_inner * math.sin(angle)
+            x_end = center_x + radius_outer * math.cos(angle)
+            y_end = center_y + radius_outer * math.sin(angle)
+            line = self.spinner_canvas.create_line(
+                x_start,
+                y_start,
+                x_end,
+                y_end,
+                width=4,
+                fill="#d0d0d0",
+                capstyle=tk.ROUND,
+            )
+            self._spinner_lines.append(line)
+
+    def _animate_spinner(self) -> None:
+        active_color = "#4a90e2"
+        faded_color = "#d0d0d0"
+
+        for index, line in enumerate(self._spinner_lines):
+            color = active_color if index == self._spinner_index else faded_color
+            self.spinner_canvas.itemconfigure(line, fill=color)
+
+        self._spinner_index = (self._spinner_index + 1) % len(self._spinner_lines)
+        self._spinner_job = self.window.after(100, self._animate_spinner)
+
+    def _release_grab(self, _event: tk.Event | None = None) -> None:  # type: ignore[type-arg]
+        self.window.grab_release()
+
+    def _restore_grab(self, _event: tk.Event | None = None) -> None:  # type: ignore[type-arg]
+        self.window.grab_set()
+
     def close(self) -> None:
-        self.progress.stop()
+        if hasattr(self, "_spinner_job"):
+            self.window.after_cancel(self._spinner_job)
         self.window.destroy()
 
 
@@ -119,11 +171,14 @@ def select_output_file(root: tk.Misc | None = None) -> Path | None:
         root.withdraw()
         should_destroy = True
 
+    timestamp = datetime.now().strftime("%m/%d/%y %H:%M")
+    safe_timestamp = timestamp.replace("/", "-").replace(":", "-")
+    default_name = f"PWA Export ({safe_timestamp}).xlsv"
     output_path = filedialog.asksaveasfilename(
         title="Save Excel file as",
-        initialfile="pwa_export.xlsx",
-        defaultextension=".xlsx",
-        filetypes=[("Excel Workbook", "*.xlsx")],
+        initialfile=default_name,
+        defaultextension=".xlsv",
+        filetypes=[("Excel Workbook", "*.xlsv"), ("All Files", "*.*")],
         parent=root,
     )
     root.update()
@@ -557,6 +612,8 @@ def show_mode_choice_popup(root: tk.Misc, overview_count: int) -> bool:
     window.geometry("420x220")
     window.resizable(False, False)
     window.grab_set()
+    window.bind("<Unmap>", lambda _e: window.grab_release())
+    window.bind("<Map>", lambda _e: window.grab_set())
 
     description = (
         f"{overview_count} records have more than 3 entries.\n\n"
@@ -564,7 +621,7 @@ def show_mode_choice_popup(root: tk.Misc, overview_count: int) -> bool:
         " selections before exporting?"
     )
 
-    ttk.Label(window, text=description, wraplength=380, justify=tk.LEFT).pack(
+    ttk.Label(window, text=description, wraplength=380, justify=tk.CENTER).pack(
         pady=(20, 10), padx=15
     )
 
@@ -640,6 +697,8 @@ class ManualOverview:
         # Keep layout static – user can’t resize and stretch the grid
         self.window.resizable(False, False)
         self.window.grab_set()
+        self.window.bind("<Unmap>", self._release_grab)
+        self.window.bind("<Map>", self._restore_grab)
 
         # row 0: header
         # row 1: content
@@ -705,6 +764,12 @@ class ManualOverview:
         self.window.protocol("WM_DELETE_WINDOW", self.window.destroy)
 
         self._render_patient()
+
+    def _release_grab(self, _event: tk.Event | None = None) -> None:  # type: ignore[type-arg]
+        self.window.grab_release()
+
+    def _restore_grab(self, _event: tk.Event | None = None) -> None:  # type: ignore[type-arg]
+        self.window.grab_set()
 
     def _patient_rows(self, patient_id: str) -> pd.DataFrame:
         return self.df.loc[
