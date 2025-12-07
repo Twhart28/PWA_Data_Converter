@@ -71,6 +71,22 @@ CHECKMARK = "✔"
 SELECTED_COLOR = "#c8f7c5"
 
 
+def center_window(window: tk.Misc) -> None:
+    """Center a Tkinter window on the screen."""
+
+    window.update_idletasks()
+    width = window.winfo_width()
+    height = window.winfo_height()
+
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+
+    x_offset = max((screen_width - width) // 2, 0)
+    y_offset = max((screen_height - height) // 2, 0)
+
+    window.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
+
+
 class LoadingWindow:
     def __init__(self, root: tk.Misc, message: str, total_steps: int | None = None):
         self.window = tk.Toplevel(root)
@@ -103,6 +119,7 @@ class LoadingWindow:
         self.status_label = ttk.Label(self.window, text="")
         self.status_label.pack(pady=(0, 10))
 
+        center_window(self.window)
         self.window.update()
 
     def update_progress(self, completed_steps: int) -> None:
@@ -241,6 +258,7 @@ def show_pdf_preview(parent: tk.Misc, pdf_path: Path) -> None:
     canvas.images = preview_photos
     canvas.configure(scrollregion=canvas.bbox("all"))
     _bind_mousewheel(canvas)
+    center_window(preview_window)
 
 
 def extract_text(pdf_path: Path) -> str:
@@ -644,6 +662,7 @@ def show_mode_choice_popup(root: tk.Misc, overview_count: int) -> bool:
     ).pack(side=tk.LEFT, padx=10)
 
     window.protocol("WM_DELETE_WINDOW", lambda: _select("auto"))
+    center_window(window)
     root.wait_window(window)
     return choice["mode"] == "manual"
 
@@ -766,6 +785,7 @@ class ManualOverview:
         self.window.protocol("WM_DELETE_WINDOW", self.window.destroy)
 
         self._render_patient()
+        center_window(self.window)
 
     def _release_grab(self, _event: tk.Event | None = None) -> None:  # type: ignore[type-arg]
         self.window.grab_release()
