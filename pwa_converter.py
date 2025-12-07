@@ -160,22 +160,26 @@ def show_pdf_preview(parent: tk.Misc, pdf_path: Path) -> None:
             if not pdf.pages:
                 raise ValueError("PDF has no pages to preview.")
 
-            page_image = pdf.pages[0].to_image(resolution=120).original
+            page_images = [page.to_image(resolution=120).original for page in pdf.pages]
     except Exception as exc:  # noqa: BLE001
         messagebox.showerror(
             "PDF Preview", f"Unable to preview PDF: {exc}", parent=parent
         )
         return
 
-    preview_image = page_image.copy()
-    preview_image.thumbnail((900, 1200), Image.Resampling.LANCZOS)
-    photo = ImageTk.PhotoImage(preview_image)
+    preview_photos: list[ImageTk.PhotoImage] = []
+    for image in page_images:
+        preview_image = image.copy()
+        preview_image.thumbnail((900, 1200), Image.Resampling.LANCZOS)
+        preview_photos.append(ImageTk.PhotoImage(preview_image))
+
+    max_width = max(photo.width() for photo in preview_photos)
+    window_width = min(max_width + 40, 1000)
+    window_height = 900
 
     preview_window = tk.Toplevel(parent)
     preview_window.title(pdf_path.name)
 
-    window_width = min(photo.width() + 40, 1000)
-    window_height = min(photo.height() + 80, 900)
     preview_window.geometry(f"{window_width}x{window_height}")
 
     container = ttk.Frame(preview_window)
@@ -190,8 +194,12 @@ def show_pdf_preview(parent: tk.Misc, pdf_path: Path) -> None:
     canvas.grid(row=0, column=0, sticky="nsew")
     v_scrollbar.grid(row=0, column=1, sticky="ns")
 
-    canvas.create_image(20, 20, anchor=tk.NW, image=photo)
-    canvas.image = photo
+    y_offset = 20
+    for photo in preview_photos:
+        canvas.create_image(20, y_offset, anchor=tk.NW, image=photo)
+        y_offset += photo.height() + 20
+
+    canvas.images = preview_photos
     canvas.configure(scrollregion=canvas.bbox("all"))
     _bind_mousewheel(canvas)
 
@@ -567,7 +575,7 @@ def show_mode_choice_popup(root: tk.Misc, overview_count: int) -> bool:
         choice["mode"] = mode
         window.destroy()
 
-    ttk.Button(button_frame, text="Use auto method", command=lambda: _select("auto")).pack(
+    ttk.Button(button_frame, text="Use Auto Method", command=lambda: _select("auto")).pack(
         side=tk.LEFT, padx=10
     )
     ttk.Button(
@@ -687,7 +695,7 @@ class ManualOverview:
         self.prev_button.grid(row=0, column=0, sticky="w")
 
         self.save_button = ttk.Button(
-            controls, text="Save all, complete analysis", command=self._complete
+            controls, text="Save All, Complete Analysis", command=self._complete
         )
         self.save_button.grid(row=0, column=1, sticky="ew", padx=15)
 
@@ -933,7 +941,7 @@ class ManualOverview:
             selection.append(row_index)
         else:
             messagebox.showwarning(
-                "Manual overview",
+                "Manual Overview",
                 "You can only select two files at a time for manual averaging.",
                 parent=self.window,
             )
