@@ -461,6 +461,7 @@ def show_pdf_preview(parent: tk.Misc, pdf_path: Path) -> None:
     preview_window = tk.Toplevel(parent)
     preview_window.title(pdf_path.name)
     preview_window.protocol("WM_DELETE_WINDOW", preview_window.destroy)
+    set_app_icon(preview_window)
 
     preview_window.geometry(f"{window_width}x{window_height}")
 
@@ -858,6 +859,7 @@ def show_mode_choice_popup(root: tk.Misc, overview_count: int) -> bool:
     window.geometry("420x220")
     window.resizable(False, False)
     window.grab_set()
+    set_app_icon(window)
     configure_popup_close(window, root)
     window.bind("<Unmap>", lambda _e: window.grab_release())
     window.bind("<Map>", lambda _e: window.grab_set())
@@ -945,6 +947,7 @@ class ManualOverview:
         # Keep layout static – user can’t resize and stretch the grid
         self.window.resizable(False, False)
         self.window.grab_set()
+        set_app_icon(self.window)
         self.window.bind("<Unmap>", self._release_grab)
         self.window.bind("<Map>", self._restore_grab)
         configure_popup_close(self.window, root)
