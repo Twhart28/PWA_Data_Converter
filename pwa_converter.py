@@ -70,6 +70,7 @@ UNRECOGNIZED_REPORT_MESSAGE = "Not recognized as a PWA Detailed Report"
 EXTRA_COLUMNS = ["Source Path"]
 CHECKMARK = "✔"
 SELECTED_COLOR = "#c8f7c5"
+APP_ICON_PATH = Path(__file__).with_name("App_Logo.ico")
 
 
 def center_window(window: tk.Misc) -> None:
@@ -103,6 +104,17 @@ def configure_popup_close(window: tk.Toplevel, root: tk.Misc) -> None:
     window.protocol("WM_DELETE_WINDOW", lambda: terminate_application(root))
 
 
+def set_app_icon(window: tk.Tk | tk.Toplevel) -> None:
+    """Apply the application icon to a Tkinter window if available."""
+
+    if APP_ICON_PATH.exists():
+        try:
+            window.iconbitmap(APP_ICON_PATH)
+        except tk.TclError:
+            # Fallback gracefully if the platform does not support .ico files
+            pass
+
+
 class LoadingWindow:
     def __init__(self, root: tk.Misc, message: str, total_steps: int | None = None):
         self.window = tk.Toplevel(root)
@@ -110,6 +122,7 @@ class LoadingWindow:
         self.window.geometry("340x160")
         self.window.resizable(False, False)
         self.window.grab_set()
+        set_app_icon(self.window)
         configure_popup_close(self.window, root)
 
         self.window.bind("<Unmap>", self._release_grab)
@@ -220,6 +233,7 @@ def show_readme_popup(root: tk.Misc) -> None:
     window.geometry("700x500")
     window.resizable(True, True)
     window.grab_set()
+    set_app_icon(window)
     window.protocol("WM_DELETE_WINDOW", window.destroy)
 
     text_frame = ttk.Frame(window)
@@ -252,6 +266,7 @@ def open_readme(parent: tk.Misc | None = None) -> None:
     win = tk.Toplevel(parent)
     win.title("Read Me")
     win.resizable(True, True)
+    set_app_icon(win)
 
     # Frame
     frame = ttk.Frame(win)
@@ -287,6 +302,7 @@ def show_startup_popup(root: tk.Misc) -> bool:
     window = tk.Toplevel(root)
     window.title("PWA Data Analyzer")
     window.resizable(False, False)
+    set_app_icon(window)
     configure_popup_close(window, root)
 
     proceed = {"continue": False}
@@ -356,6 +372,7 @@ def select_input_files(root: tk.Misc | None = None) -> tuple[Path, ...]:
     should_destroy = False
     if root is None:
         root = tk.Tk()
+        set_app_icon(root)
         root.withdraw()
         should_destroy = True
 
@@ -376,6 +393,7 @@ def select_output_file(root: tk.Misc | None = None) -> Path | None:
     should_destroy = False
     if root is None:
         root = tk.Tk()
+        set_app_icon(root)
         root.withdraw()
         should_destroy = True
 
@@ -1389,6 +1407,7 @@ def save_to_excel(
 
 def main() -> None:
     root = tk.Tk()
+    set_app_icon(root)
     root.withdraw()
 
     # Show startup popup with image and buttons (not wired yet)
