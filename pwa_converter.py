@@ -442,7 +442,7 @@ def show_pdf_preview(parent: tk.Misc, pdf_path: Path) -> None:
 
     preview_window = tk.Toplevel(parent)
     preview_window.title(pdf_path.name)
-    configure_popup_close(preview_window, parent)
+    preview_window.protocol("WM_DELETE_WINDOW", preview_window.destroy)
 
     preview_window.geometry(f"{window_width}x{window_height}")
 
