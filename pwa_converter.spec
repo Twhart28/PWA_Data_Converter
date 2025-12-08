@@ -5,7 +5,7 @@ a = Analysis(
     ['pwa_converter.py'],
     pathex=[],
     binaries=[],
-    datas=[('startup_image.png', '.')],
+    datas=[('startup_image.png', '.'), ('App_Logo.ico', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
