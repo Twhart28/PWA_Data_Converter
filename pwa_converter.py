@@ -973,6 +973,26 @@ class ManualOverview:
             font=self.base_font,
         )
         self.data_sheet_link.pack(side=tk.LEFT, padx=(10, 0))
+        self.warning_icon = tk.Canvas(
+            self.header_container,
+            width=18,
+            height=18,
+            highlightthickness=0,
+            cursor="hand2",
+        )
+        self.warning_icon.create_oval(2, 2, 16, 16, fill="#f5a623", outline="#cc7a00")
+        self.warning_icon.create_text(
+            9,
+            9,
+            text="!",
+            fill="white",
+            font=("TkDefaultFont", 11, "bold"),
+        )
+        self.warning_icon.pack(side=tk.LEFT, padx=(8, 0))
+        self.warning_icon.bind("<Enter>", self._show_warning_tooltip)
+        self.warning_icon.bind("<Leave>", self._hide_warning_tooltip)
+        self.warning_tooltip: tk.Toplevel | None = None
+        self.warning_messages: list[str] = []
 
         # ---- Content area (no scrollbars, fixed width columns) ----
         self.content_container = ttk.Frame(self.window)
@@ -1086,6 +1106,69 @@ class ManualOverview:
             "<Button-1>",
             lambda _e, pid=patient_id: self._open_data_collection_sheet(pid),
         )
+        self._update_warning_indicator(patient_id)
+
+    def _patient_warnings(self, patient_id: str) -> list[str]:
+        warnings: list[str] = []
+        patient_rows = self._patient_rows(patient_id)
+        scan_dates = pd.to_datetime(
+            patient_rows["Scan Date"], errors="coerce", dayfirst=True
+        )
+        unique_dates = {date.date() for date in scan_dates.dropna()}
+        if len(unique_dates) > 1:
+            warnings.append(
+                "Scan dates differ across this participant's files."
+            )
+
+        clinical_rows = self.df[self.df["Patient ID"] == CLINICAL_REPORT_MESSAGE]
+        clinical_ids = {
+            _derive_patient_id(Path(str(source)))
+            for source in clinical_rows["Source File"].dropna()
+        }
+        if patient_id in clinical_ids:
+            warnings.append(
+                "A clinical report was uploaded. Only detailed reports are used, so"
+                " confirm a detailed report is available."
+            )
+
+        return warnings
+
+    def _update_warning_indicator(self, patient_id: str) -> None:
+        self.warning_messages = self._patient_warnings(patient_id)
+        if self.warning_messages:
+            if not self.warning_icon.winfo_ismapped():
+                self.warning_icon.pack(side=tk.LEFT, padx=(8, 0))
+        else:
+            self._hide_warning_tooltip()
+            if self.warning_icon.winfo_ismapped():
+                self.warning_icon.pack_forget()
+
+    def _show_warning_tooltip(self, _event: tk.Event | None = None) -> None:  # type: ignore[type-arg]
+        if not self.warning_messages or self.warning_tooltip is not None:
+            return
+        tooltip = tk.Toplevel(self.window)
+        tooltip.wm_overrideredirect(True)
+        tooltip.attributes("-topmost", True)
+        label = ttk.Label(
+            tooltip,
+            text="\n".join(self.warning_messages),
+            background="#fff4e5",
+            relief="solid",
+            borderwidth=1,
+            font=self.base_font,
+            justify=tk.LEFT,
+        )
+        label.pack(ipadx=6, ipady=4)
+        x = self.warning_icon.winfo_rootx() + 20
+        y = self.warning_icon.winfo_rooty() + 20
+        tooltip.wm_geometry(f"+{x}+{y}")
+        self.warning_tooltip = tooltip
+
+    def _hide_warning_tooltip(self, _event: tk.Event | None = None) -> None:  # type: ignore[type-arg]
+        if self.warning_tooltip is None:
+            return
+        self.warning_tooltip.destroy()
+        self.warning_tooltip = None
 
     def _button_text(self, label: str, selected: bool) -> str:
         return f"{label} {CHECKMARK}" if selected else label
