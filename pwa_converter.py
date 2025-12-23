@@ -980,7 +980,7 @@ class ManualOverview:
             highlightthickness=0,
             cursor="hand2",
         )
-        self.warning_icon.create_oval(2, 2, 16, 16, fill="#f5a623", outline="#cc7a00")
+        self.warning_icon.create_oval(2, 2, 16, 16, fill="#d0021b", outline="#a40015")
         self.warning_icon.create_text(
             9,
             9,
@@ -1136,8 +1136,9 @@ class ManualOverview:
     def _update_warning_indicator(self, patient_id: str) -> None:
         self.warning_messages = self._patient_warnings(patient_id)
         if self.warning_messages:
-            if not self.warning_icon.winfo_ismapped():
-                self.warning_icon.pack(side=tk.LEFT, padx=(8, 0))
+            self._hide_warning_tooltip()
+            self.warning_icon.pack_forget()
+            self.warning_icon.pack(side=tk.LEFT, padx=(8, 0))
         else:
             self._hide_warning_tooltip()
             if self.warning_icon.winfo_ismapped():
@@ -1159,8 +1160,18 @@ class ManualOverview:
             justify=tk.LEFT,
         )
         label.pack(ipadx=6, ipady=4)
+        tooltip.update_idletasks()
+        window_x = self.window.winfo_rootx()
+        window_y = self.window.winfo_rooty()
+        window_width = self.window.winfo_width()
+        window_height = self.window.winfo_height()
+        tooltip_width = tooltip.winfo_reqwidth()
+        tooltip_height = tooltip.winfo_reqheight()
+        margin = 10
         x = self.warning_icon.winfo_rootx() + 20
         y = self.warning_icon.winfo_rooty() + 20
+        x = max(window_x + margin, min(x, window_x + window_width - tooltip_width - margin))
+        y = max(window_y + margin, min(y, window_y + window_height - tooltip_height - margin))
         tooltip.wm_geometry(f"+{x}+{y}")
         self.warning_tooltip = tooltip
 
