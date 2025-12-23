@@ -1606,6 +1606,20 @@ def save_to_excel(
                     patient_cell = sheet.cell(row=row_index + 2, column=2)
                     patient_cell.alignment = header_alignment
 
+            if sheet_name == "Averaged Data" and "Quality Check" in frame.columns:
+                quality_col_index = frame.columns.get_loc("Quality Check") + 1
+                for cell in sheet.iter_cols(
+                    min_col=quality_col_index,
+                    max_col=quality_col_index,
+                    min_row=2,
+                    max_row=sheet.max_row,
+                ):
+                    for quality_cell in cell:
+                        if quality_cell.value is None:
+                            continue
+                        if str(quality_cell.value).strip().lower() != "pass":
+                            quality_cell.alignment = header_alignment
+
             for date_column in date_columns:
                 if date_column not in frame.columns:
                     continue
