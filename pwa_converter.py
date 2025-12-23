@@ -1127,8 +1127,8 @@ class ManualOverview:
         }
         if patient_id in clinical_ids:
             warnings.append(
-                "A clinical report was uploaded. Only detailed reports are used, so"
-                " confirm a detailed report is available."
+                "A clinical report was uploaded. Only detailed reports are used for"
+                " analysis. Confirm all detailed reports were uploaded."
             )
 
         return warnings
@@ -1141,8 +1141,7 @@ class ManualOverview:
             self.warning_icon.pack(side=tk.LEFT, padx=(8, 0))
         else:
             self._hide_warning_tooltip()
-            if self.warning_icon.winfo_ismapped():
-                self.warning_icon.pack_forget()
+            self.warning_icon.pack_forget()
 
     def _show_warning_tooltip(self, _event: tk.Event | None = None) -> None:  # type: ignore[type-arg]
         if not self.warning_messages or self.warning_tooltip is not None:
