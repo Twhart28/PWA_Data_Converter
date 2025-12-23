@@ -1128,7 +1128,7 @@ class ManualOverview:
         if patient_id in clinical_ids:
             warnings.append(
                 "A clinical report was uploaded. Only detailed reports are used for"
-                " analysis. Confirm all detailed reports were uploaded."
+                " analysis. Confirm all detailed reports are uploaded."
             )
 
         return warnings
