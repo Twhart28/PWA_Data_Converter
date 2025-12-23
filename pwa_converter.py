@@ -68,6 +68,15 @@ CLINICAL_REPORT_MESSAGE = (
 UNRECOGNIZED_REPORT_MESSAGE = "Not recognized as a PWA Detailed Report"
 
 EXTRA_COLUMNS = ["Source Path"]
+AVERAGED_EXCLUDED_FIELDS = {
+    "Source File",
+    "Scanned ID",
+    "Scan Date",
+    "Scan Time",
+    "Analyed",
+    "Recording #",
+    "Source Path",
+}
 CHECKMARK = "✔"
 SELECTED_COLOR = "#c8f7c5"
 APP_ICON_PATH = Path(__file__).with_name("App_Logo.ico")
@@ -820,15 +829,6 @@ def _build_analyzed_data(
     analyzed_records: list[dict[str, object]] = []
     kept_indices: set[int] = set()
     used_pairs: dict[str, tuple[int, int]] = {}
-    excluded_fields = {
-        "Source File",
-        "Scanned ID",
-        "Scan Date",
-        "Scan Time",
-        "Analyed",
-        "Recording #",
-        "Source Path",
-    }
 
     manual_pairs = manual_pairs or {}
 
@@ -842,13 +842,79 @@ def _build_analyzed_data(
             continue
 
         pair_df = df.loc[list(pair)]
-        averaged_record = _average_pair_rows(pair_df, excluded_fields)
+        averaged_record = _average_pair_rows(pair_df, AVERAGED_EXCLUDED_FIELDS)
         averaged_record["Patient ID"] = patient_id
         analyzed_records.append(averaged_record)
         kept_indices.update(pair)
         used_pairs[patient_id] = pair
 
     return pd.DataFrame(analyzed_records), kept_indices, used_pairs
+
+
+def _quality_check_summary(
+    df: pd.DataFrame,
+    used_pairs: dict[str, tuple[int, int]],
+) -> tuple[dict[str, str], list[str]]:
+    regular_df = df.loc[~df["Special Row"]].copy()
+    single_file_patient_ids = (
+        regular_df["Patient ID"].value_counts().loc[lambda s: s == 1].index.tolist()
+    )
+
+    clinical_rows = df[df["Patient ID"] == CLINICAL_REPORT_MESSAGE]
+    clinical_ids = {
+        _derive_patient_id(Path(str(source)))
+        for source in clinical_rows["Source File"].dropna()
+    }
+
+    diff_fields = [
+        "Peripheral Systolic Pressure (mmHg)",
+        "Peripheral Diastolic Pressure (mmHg)",
+        "Aortic Systolic Pressure (mmHg)",
+        "Aortic Diastolic Pressure (mmHg)",
+    ]
+
+    checks: dict[str, str] = {}
+
+    for patient_id, group in regular_df.groupby("Patient ID"):
+        failures: list[str] = []
+        if len(group) == 1:
+            failures.append("Only one file was uploaded for this participant.")
+
+        if patient_id in clinical_ids:
+            failures.append(
+                "A clinical report was uploaded. Only detailed reports are used for"
+                " analysis. Confirm all detailed reports are uploaded."
+            )
+
+        pair = used_pairs.get(patient_id)
+        if pair:
+            pair_df = df.loc[list(pair)]
+            scan_dates = pd.to_datetime(
+                pair_df["Scan Date"], errors="coerce", dayfirst=True
+            )
+            if scan_dates.notna().sum() == 2:
+                unique_dates = {date.date() for date in scan_dates.dropna()}
+                if len(unique_dates) > 1:
+                    failures.append(
+                        "Participant has different scan dates between the files choosen"
+                        " for analysis."
+                    )
+
+            for field in diff_fields:
+                if field not in pair_df.columns:
+                    continue
+                values = pd.to_numeric(pair_df[field], errors="coerce")
+                if values.notna().all():
+                    diff = abs(values.iloc[0] - values.iloc[1])
+                    if diff > 5:
+                        failures.append(
+                            "The two selected files differ by more than 5 mmhg for"
+                            f" {field}."
+                        )
+
+        checks[patient_id] = "Pass" if not failures else " // ".join(failures)
+
+    return checks, single_file_patient_ids
 
 
 def show_mode_choice_popup(root: tk.Misc, overview_count: int) -> bool:
@@ -1422,16 +1488,53 @@ def save_to_excel(
 ) -> int:
     df, special_row_mask = _prepare_dataframe(records)
 
-    analyzed_df, kept_indices, _ = _build_analyzed_data(
+    analyzed_df, kept_indices, used_pairs = _build_analyzed_data(
         df, ANALYSIS_MODE, manual_pairs
     )
+
+    quality_checks, single_file_patient_ids = _quality_check_summary(df, used_pairs)
+
+    averaged_columns = [
+        column
+        for column in df.columns
+        if column not in AVERAGED_EXCLUDED_FIELDS | {"Special Row"}
+    ]
+
+    if analyzed_df.empty:
+        averaged_df = pd.DataFrame(columns=averaged_columns)
+    else:
+        averaged_df = analyzed_df.reindex(columns=averaged_columns).copy()
+
+    placeholder_rows = []
+    for patient_id in single_file_patient_ids:
+        row = {column: "-" for column in averaged_columns}
+        row["Patient ID"] = patient_id
+        placeholder_rows.append(row)
+
+    if placeholder_rows:
+        averaged_df = pd.concat(
+            [averaged_df, pd.DataFrame(placeholder_rows)], ignore_index=True
+        )
+
+    averaged_df["Quality Check"] = (
+        averaged_df["Patient ID"].map(quality_checks).fillna("Pass")
+    )
+
+    if "Patient ID" in averaged_df.columns:
+        ordered_columns = [
+            column for column in averaged_df.columns if column != "Quality Check"
+        ]
+        insert_at = ordered_columns.index("Patient ID") + 1
+        ordered_columns.insert(insert_at, "Quality Check")
+        averaged_df = averaged_df[ordered_columns]
+    else:
+        averaged_df.insert(0, "Quality Check", averaged_df.pop("Quality Check"))
 
     df["Analyed"] = "No"
     if kept_indices:
         df.loc[df.index.isin(kept_indices), "Analyed"] = "Yes"
 
     kept_df = df[df["Analyed"] == "Yes"].copy()
-    averaged_df = analyzed_df.drop(columns=["Recording #"], errors="ignore").copy()
 
     date_columns = ["Scan Date", "Date of Birth"]
 
@@ -1449,6 +1552,14 @@ def save_to_excel(
     df = _normalize_dates(df)
     kept_df = _normalize_dates(kept_df)
     averaged_df = _normalize_dates(averaged_df)
+    if single_file_patient_ids:
+        placeholder_mask = averaged_df["Patient ID"].isin(single_file_patient_ids)
+        fill_columns = [
+            column
+            for column in averaged_df.columns
+            if column not in {"Patient ID", "Quality Check"}
+        ]
+        averaged_df.loc[placeholder_mask, fill_columns] = "-"
 
     def _strip_aux_columns(frame: pd.DataFrame) -> pd.DataFrame:
         return frame.drop(columns=["Special Row", *EXTRA_COLUMNS], errors="ignore")
