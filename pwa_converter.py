@@ -957,16 +957,16 @@ class ManualOverview:
         # row 2: bottom buttons
 
         # ---- Header ----
-        header_container = ttk.Frame(self.window)
-        header_container.grid(row=0, column=0, pady=(15, 5), padx=15, sticky="w")
+        self.header_container = ttk.Frame(self.window)
+        self.header_container.grid(row=0, column=0, pady=(15, 5), padx=15, sticky="w")
 
         self.header_label = ttk.Label(
-            header_container, font=("TkDefaultFont", 12, "bold")
+            self.header_container, font=("TkDefaultFont", 12, "bold")
         )
         self.header_label.pack(side=tk.LEFT)
 
         self.data_sheet_link = tk.Label(
-            header_container,
+            self.header_container,
             text=" [Data Collection Sheet]",
             fg="blue",
             cursor="hand2",
@@ -975,10 +975,10 @@ class ManualOverview:
         self.data_sheet_link.pack(side=tk.LEFT, padx=(10, 0))
 
         # ---- Content area (no scrollbars, fixed width columns) ----
-        content_container = ttk.Frame(self.window)
-        content_container.grid(row=1, column=0, sticky="n", padx=15, pady=(0, 5))
+        self.content_container = ttk.Frame(self.window)
+        self.content_container.grid(row=1, column=0, sticky="n", padx=15, pady=(0, 5))
 
-        self.content_frame = ttk.Frame(content_container)
+        self.content_frame = ttk.Frame(self.content_container)
         self.content_frame.grid(row=0, column=0, sticky="nw")
 
         # Fixed column widths so grid doesn’t resize with the window
@@ -996,21 +996,21 @@ class ManualOverview:
         self.content_frame.columnconfigure(7, minsize=90)
 
         # ---- Bottom controls (single bar at bottom, no right-hand pane) ----
-        controls = ttk.Frame(self.window)
-        controls.grid(row=2, column=0, sticky="ew", pady=(5, 15), padx=10)
-        controls.columnconfigure(0, weight=1)
-        controls.columnconfigure(1, weight=1)
-        controls.columnconfigure(2, weight=1)
+        self.controls = ttk.Frame(self.window)
+        self.controls.grid(row=2, column=0, sticky="ew", pady=(5, 15), padx=10)
+        self.controls.columnconfigure(0, weight=1)
+        self.controls.columnconfigure(1, weight=1)
+        self.controls.columnconfigure(2, weight=1)
 
-        self.prev_button = ttk.Button(controls, text="Previous", command=self._go_previous)
+        self.prev_button = ttk.Button(self.controls, text="Previous", command=self._go_previous)
         self.prev_button.grid(row=0, column=0, sticky="w")
 
         self.save_button = ttk.Button(
-            controls, text="Save All, Complete Analysis", command=self._complete
+            self.controls, text="Save All, Complete Analysis", command=self._complete
         )
         self.save_button.grid(row=0, column=1, sticky="ew", padx=15)
 
-        self.next_button = ttk.Button(controls, text="Next", command=self._go_next)
+        self.next_button = ttk.Button(self.controls, text="Next", command=self._go_next)
         self.next_button.grid(row=0, column=2, sticky="e")
 
         self.window.protocol("WM_DELETE_WINDOW", lambda: terminate_application(root))
@@ -1089,6 +1089,17 @@ class ManualOverview:
 
     def _button_text(self, label: str, selected: bool) -> str:
         return f"{label} {CHECKMARK}" if selected else label
+
+    def _resize_for_content(self) -> None:
+        self.window.update_idletasks()
+        required_height = (
+            self.header_container.winfo_reqheight()
+            + self.content_container.winfo_reqheight()
+            + self.controls.winfo_reqheight()
+            + 60
+        )
+        height = max(520, required_height)
+        self.window.geometry(f"811x{height}")
 
     def _render_patient(self) -> None:
         for child in self.content_frame.winfo_children():
@@ -1243,6 +1254,7 @@ class ManualOverview:
             ).grid(row=idx, column=7, sticky="e", pady=4)
 
         self.content_frame.update_idletasks()
+        self._resize_for_content()
         self._update_nav_buttons()
 
     def _update_nav_buttons(self) -> None:
