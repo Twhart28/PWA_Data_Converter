@@ -367,7 +367,7 @@ def show_startup_popup(root: tk.Misc) -> bool:
     # --- Version label ---
     version_label = ttk.Label(
         container,
-        text="Version 1 (12/07/25)",
+        text="Version 2 (12/23/25)",
         font=("TkDefaultFont", 10),
     )
     version_label.pack(pady=(5, 0))
